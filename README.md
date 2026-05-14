@@ -1,187 +1,214 @@
 <p align="center">
-  <img src="assets/banner.png" alt="HYPERRESEARCH" width="700">
+  <img src="assets/banner.png" alt="hyperresearch" width="700">
 </p>
 
-<h3 align="center">The Most Powerful Deep Research Harness</h3>
+# hyperresearch
+
+Codex-first deep research harness with a persistent vault, a 16-step research pipeline, and an automatic reasoning-effort router for direct Codex tasks.
+
+This repository is an adaptation of the original hyperresearch project by Jordan Gibbs. The research workflow, vault structure, and multi-step pipeline were inspired by that work; this fork rewires the bundle for Codex CLI first while keeping Claude Code compatibility in the library.
 
 <p align="center">
   <a href="https://pypi.org/project/hyperresearch/"><img src="https://img.shields.io/pypi/v/hyperresearch" alt="PyPI version"></a>
   <a href="https://pypi.org/project/hyperresearch/"><img src="https://img.shields.io/pypi/pyversions/hyperresearch" alt="Python 3.11+"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/jordan-gibbs/hyperresearch" alt="License: MIT"></a>
-  <a href="https://github.com/jordan-gibbs/hyperresearch"><img src="https://img.shields.io/github/stars/jordan-gibbs/hyperresearch?style=social" alt="GitHub stars"></a>
+  <a href="https://github.com/federicomeschini/hyperresearch/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+  <a href="https://github.com/federicomeschini/hyperresearch"><img src="https://img.shields.io/badge/repo-hyperresearch-blue" alt="Repository"></a>
 </p>
 
 ---
 
-**Hyperresearch turns Codex CLI or Claude Code into a deep research agent and currently leads the DeepResearch-Bench RACE leaderboard (benchmarked internally).** A tier-adaptive 16-step pipeline produces adversarially-audited reports with full source provenance. Every fetched source lands in a persistent, searchable vault that compounds across sessions.
+## Overview
 
-<p align="center">
-  <img src="assets/benchmark.png" alt="DeepResearch-Bench top-5 — hyperresearch leads the chart ahead of Grep Deep Research, Cellcog Max, nvidia-aiq, Gemini Deep Research, and OpenAI Deep Research" width="780">
-</p>
+hyperresearch turns Codex CLI or Claude Code into a deep research system that:
 
-<p align="center"><sub>Forward-looking projection from a stratified pilot against the DeepResearch-Bench leaderboard snapshot (https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard). Third party validation is pending.</sub></p>
+- keeps every fetched source in a persistent, searchable vault
+- decomposes a query into a multi-step research plan
+- spawns role-specific agents for fetching, analysis, drafting, critique, patching, and polish
+- preserves provenance so sources can be traced through the workflow
+- routes direct Codex tasks through a cheap preflight effort selector before launching the main run
+
+The Codex branch defaults to the Codex path:
+
+- `hyperresearch install --platform codex`
+- `hyperresearch codex run "<task>"`
+
+Claude Code remains supported as the legacy path:
+
+- `hyperresearch install --platform claude`
+
+---
 
 ## Install
 
 ```bash
-cd your-project
-pip install hyperresearch && hyperresearch install --platform codex
+pip install hyperresearch
+hyperresearch install --platform codex
 ```
 
-Then use `hyperresearch research "<anything>"` in Codex CLI.
+Then run research inside a vault:
 
-For direct Codex tasks that should route reasoning effort automatically, use
-`hyperresearch codex run "<task>"`.
+```bash
+hyperresearch research "your question"
+```
 
-Use `hyperresearch install --platform claude` if you want the legacy Claude Code hook flow instead.
+For direct Codex tasks that should route reasoning effort automatically:
 
-The 16-step skill pipeline below runs on both platforms. `hyperresearch install --platform codex` provisions the Codex-native bundle (`AGENTS.md`, `.agents/skills`, `.codex/agents`, `.codex/config.toml`); `--platform claude` keeps the legacy Claude Code hook flow.
+```bash
+hyperresearch codex run "review this module for race conditions"
+```
 
-> Python 3.11–3.13. (3.14 not yet supported — use `pyenv install 3.13`, `uv venv -p 3.13`, or `py -3.13 -m venv .venv`.)
->
-> Power users: `hyperresearch install --global` makes `/hyperresearch` reachable from every Codex or Claude Code session anywhere. Per-project install (above) keeps unrelated sessions clean.
+If you need the legacy Claude Code flow instead:
+
+```bash
+hyperresearch install --platform claude
+```
+
+Power users can make the bundle available globally:
+
+```bash
+hyperresearch install --global
+```
 
 ---
 
-## The 16-step research pipeline
+## What Codex Installs
 
-The entry skill is a thin router. It bootstraps the canonical research query, then invokes one step skill per pipeline phase via the platform's native skill loader. Each step's procedure is loaded fresh into context only when needed, defeating context-rot problems that make long pipelines silently drop steps.
+`hyperresearch install --platform codex` provisions the Codex-native bundle:
 
-| # | Step | What it does | Tiers |
+- `AGENTS.md` at the vault root
+- `.agents/skills/<skill>/SKILL.md`
+- `.codex/agents/*.toml`
+- `.codex/config.toml`
+
+It also installs a cheap read-only effort router agent. The router does not choose the model roster. It only recommends `reasoning.effort` for the task before the main Codex run starts.
+
+The generated Codex launcher is:
+
+```bash
+hyperresearch codex run "<task>"
+```
+
+That wrapper:
+
+1. runs the cheap effort router
+2. reads `reasoning_effort`
+3. launches `codex exec` with `-c reasoning.effort=<value>`
+
+---
+
+## Core Commands
+
+| Command | Purpose |
+|---|---|
+| `hyperresearch install --platform codex` | Initialize a Codex vault and install the Codex bundle |
+| `hyperresearch install --platform claude` | Install the legacy Claude Code hook flow |
+| `hyperresearch setup` | Interactive first-time setup |
+| `hyperresearch research "<topic>"` | Run the research pipeline inside the vault |
+| `hyperresearch codex run "<task>"` | Run a direct Codex task with automatic effort routing |
+| `hyperresearch fetch "<url>"` | Fetch and save a source |
+| `hyperresearch search "<query>"` | Search the vault |
+| `hyperresearch note show <id>` | Read a note |
+| `hyperresearch lint` | Run structural health checks |
+| `hyperresearch repair` | Repair the vault and refresh platform bundles |
+| `hyperresearch sync` | Rescan markdown and rebuild the index |
+| `hyperresearch mcp` | Start the read-only MCP server |
+
+---
+
+## The 16-Step Pipeline
+
+The research workflow is still the same 16-step pipeline, but the README now describes it in platform-neutral terms instead of tying it to one creator's model table.
+
+| # | Step | What it does | Tier |
 |---|---|---|---|
-| 1 | Decompose | Canonical query → atomic items + coverage matrix + tier classification | both |
-| 2 | Width sweep | Multi-perspective search plan + parallel fetcher waves (Haiku) | both |
-| 3 | Contradiction graph | Pair contradictions across the corpus into ranked clusters | full |
-| 4 | Loci analysis | Two parallel loci-analysts → scored loci with source budgets | full |
-| 5 | Depth investigation | K parallel depth-investigators → interim notes with committed positions | full |
-| 6 | Cross-locus reconcile | Reconcile committed positions → comparisons.md | full |
-| 7 | Source tensions | Extract expert disagreements → source-tensions.json | full |
-| 8 | Corpus critic | "What source would overturn this?" + targeted gap-fill fetch | full |
-| 9 | Evidence digest | Top claims + verbatim quotes → evidence-digest.md | full |
-| 10 | Triple draft | Per-angle source curation + 3 parallel draft sub-orchestrators (light: single draft) | both |
-| 11 | Synthesize | Plan + outline + spawn synthesizer subagent → final_report.md | full |
-| 12 | Critics | 4 adversarial critics in parallel → findings JSONs | full |
-| 13 | Gap-fetch | Targeted fetch wave for critic-identified vault gaps | full |
-| 14 | Patcher | Surgical Edit hunks applied to draft (tool-locked Read+Edit) | full |
-| 15 | Polish | Hygiene + filler pass (tool-locked Read+Edit subagent) | both |
-| 16 | Readability audit | Recommender writes JSON suggestions; orchestrator selectively applies | both |
+| 1 | Decompose | Turn the query into atomic items and a coverage plan | both |
+| 2 | Width sweep | Build a multi-perspective search plan and fetch seed sources | both |
+| 3 | Contradiction graph | Cluster source conflicts and tensions | full |
+| 4 | Loci analysis | Pick focused loci for deeper investigation | full |
+| 5 | Depth investigation | Write interim notes with committed positions | full |
+| 6 | Cross-locus reconcile | Reconcile the locus-level positions | full |
+| 7 | Source tensions | Extract explicit disagreements between sources | full |
+| 8 | Corpus critic | Ask what source would overturn the current direction | full |
+| 9 | Evidence digest | Compile the strongest evidence and quotes | full |
+| 10 | Triple draft | Produce draft material from curated angles | both |
+| 11 | Synthesize | Build the final report | full |
+| 12 | Critics | Run adversarial critique passes | full |
+| 13 | Gap-fetch | Fetch sources identified by the critics | full |
+| 14 | Patcher | Apply surgical edits, not rewrites | full |
+| 15 | Polish | Clean up hygiene, filler, and drift | both |
+| 16 | Readability audit | Suggest readability improvements | both |
 
-### Depth Modes 
+The pipeline is tier-aware:
 
-In your prompt, you can request one of two tiers and the rest of the pipeline scales accordingly. Full mode is default.
-
-| Tier | Steps that run | Typical time |
-|---|---|---|
-| `light` | bounded factual queries, surveys, comparisons — 1 → 2 → 10 → 15 → 16 | ~30–40 min |
-| `full` | deep argumentative analysis with adversarial review — all 16 steps | ~1.5–2.5 hours |
-
-### The two load-bearing principles
-
-1. **Patch, never regenerate.** After step 11 produces the synthesized report (or step 10 for light tier), the only modifications are surgical Edit hunks. The patcher and polish auditor are tool-locked to `[Read, Edit]` at the host platform's allowlist level so they physically cannot Write a new draft. Per-hunk caps make "just rewrite it" mechanically impossible. Critic findings that don't fit a small hunk escalate as structural issues.
-
-2. **Canonical research query is gospel.** The verbatim user prompt is persisted to `research/query-<vault_tag>.md` once and re-read by every subsequent step and every spawned subagent. Wrapper requirements (save paths, citation format, terminal sections) are a separate contract.
-
-### Subagent roster
-
-| Agent | Model | Role |
-|---|---|---|
-| `hyperresearch-fetcher` | Sonnet | URL fetching via crawl4ai; runs 8–12 in parallel per wave |
-| `hyperresearch-source-analyst` | Sonnet (1M ctx) | End-to-end digest of any single long source >5000 words |
-| `hyperresearch-loci-analyst` | Sonnet | Reads the width corpus, returns 1–8 depth loci with rationale |
-| `hyperresearch-depth-investigator` | Sonnet | Investigates one locus, writes one interim note with a committed position |
-| `hyperresearch-corpus-critic` | Sonnet | "What source would overturn the current direction?" pre-draft gap analysis |
-| `hyperresearch-draft-orchestrator` | Opus | One per draft angle; reads its curated source list and writes one draft |
-| `hyperresearch-synthesizer` | Opus | Reads all 3 drafts, writes the final report (two-pass write, Read+Write locked) |
-| `hyperresearch-dialectic-critic` | Opus | Counter-evidence the draft missed |
-| `hyperresearch-depth-critic` | Opus | Shallow spots interim notes could fill |
-| `hyperresearch-width-critic` | Opus | Topical corners the corpus supports but the draft ignores |
-| `hyperresearch-instruction-critic` | Opus | Structural mismatches against the prompt's atomic items |
-| `hyperresearch-patcher` | Opus | Tool-locked `[Read, Edit]`. Applies critic findings as surgical Edit hunks |
-| `hyperresearch-polish-auditor` | Opus | Tool-locked `[Read, Edit]`. Cuts filler, strips hygiene leaks |
-| `hyperresearch-readability-recommender` | Opus | Writes JSON suggestions for paragraph rhythm and list/table conversion |
+- `light` skips the deepest adversarial steps
+- `full` runs the complete workflow
 
 ---
 
-## The vault: persistent, searchable, compounding
+## Vault Model
 
-Hyperresearch is not a one-shot report generator like most other Deep research harnesses. Every fetched source lands in a SQLite-indexed vault that every future research session can reuse.
+The vault is the durable part of hyperresearch.
 
-```bash
-hyperresearch search "ion-trap gate fidelity" -j           # Full-text search
-hyperresearch search "quantum" --include-body -j           # Full-body search
-hyperresearch note show <id1> <id2> <id3> -j               # Batch-read notes
-hyperresearch graph hubs -j                                # Most-connected notes
-hyperresearch graph backlinks <id> -j                      # Reverse links
-hyperresearch lint -j                                      # Health check (broken links, missing tags)
-```
+- Notes live in `research/notes/`
+- Markdown is the source of truth
+- SQLite is the rebuildable index
+- Fetched sources can be searched, linked, and reused later
+- `hyperresearch sync` rebuilds the index from markdown if needed
 
-**Markdown is truth, SQLite is cache.** Notes live as plain markdown with YAML frontmatter in `research/notes/`. The SQLite index is fully rebuildable. Delete it and `hyperresearch sync` reconstructs it from the markdown. The vault is inspectable in any editor, version-controllable in git, and readable without the tool installed.
-
-**PDFs fetch directly.** `hyperresearch fetch` auto-detects PDF URLs (arXiv, NBER, SSRN, direct `.pdf` links) and extracts full text via pymupdf. Raw PDFs land in `research/raw/<note-id>.pdf` and the note's `raw_file:` frontmatter links back.
-
-**Provenance breadcrumbs.** Every fetched source carries a `--suggested-by` link back to whatever surfaced it. The chain forms a rooted tree from seed fetches; the `provenance` lint rule catches disconnected components.
+This makes the repository useful as both a research workflow and a long-lived knowledge base.
 
 ---
 
-## What's structurally enforced
+## How Codex Routing Works
 
-- **Verbatim prompt as gospel** — `scaffold-prompt` lint blocks if the scaffold doesn't open with the user's exact prompt
-- **Locus coverage** — every step 4 locus must have a step 5 interim note; missing interims flag as errors
-- **Patch-only modification** — steps 14, 15, 16 are tool-locked to `[Read, Edit]`. They cannot regenerate the draft
-- **Critical findings never silently skip** — `patch-surgery` lint surfaces any critical finding the patcher couldn't apply
-- **Schema integrity** — `tier`, `content_type`, and `type` are SQLite CHECK-constrained vocabularies; corrupted frontmatter cannot poison the index
-- **Hygiene leaks caught on the way out** — scaffold sections, YAML frontmatter, and prompt echoes are stripped by step 15 before ship
+The Codex path now has two layers:
 
----
+1. fixed role mapping in `.codex/agents/*.toml`
+2. automatic effort routing for direct tasks
 
-## Authenticated crawling
+The router is intentionally cheap:
 
-Fetch from LinkedIn, Twitter, paywalled sites or anything you can log into:
+- read-only
+- low effort
+- fast preflight classification
+- output limited to `reasoning_effort` and a short explanation
 
-```bash
-hyperresearch setup       # Browser opens. Log into your sites. Done.
-```
-
-LinkedIn, Twitter, Facebook, Instagram, and TikTok automatically use a visible browser to avoid session kills.
+That keeps the model roster stable while still avoiding unnecessary compute on trivial tasks.
 
 ---
 
-## Academic APIs before web search
+## Setup and Crawling
 
-For any topic with a research literature, hit academic APIs BEFORE web search. They return citation-ranked canonical papers; web search returns derivative commentary.
+`hyperresearch setup` provides interactive first-time configuration.
 
-- **Semantic Scholar** — `https://api.semanticscholar.org/graph/v1/paper/search`
-- **arXiv** — `https://export.arxiv.org/api/query`
-- **OpenAlex** — `https://api.openalex.org/works`
-- **PubMed** — `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi`
+If you use browser-backed crawling, you can configure:
 
-After the academic sweep, run web searches for context, news, non-academic angles, and at least one adversarial search ("criticism of X", "limitations of X").
+- web provider
+- login profile
+- stealth / browser behavior
+
+`crawl4ai` is the preferred browser-backed provider when available. If it is not installed, the vault can still use the built-in web path.
 
 ---
 
-## What it doesn't do
+## Attribution
 
-- It doesn't replace your judgment on which sources matter. The agent picks, you steer.
-- It can't fetch what's behind a paywall you haven't logged into.
-- It runs on the host platform's model roster via the subagent bundle: Codex uses `gpt-5.4-mini`, `gpt-5.4`, and `gpt-5.5` with `model_reasoning_effort` tuned to `medium` for the operational tiers and `high` for the hardest adversarial or final-arbitration roles. A tiny `hyperresearch-effort-router` agent does a cheap preflight pass and recommends the cheapest safe reasoning effort before you spend heavy reasoning. Costs scale with tier and corpus size.
-- The lint gate catches **structural** failures (missing scaffold, broken provenance, unresolved CRITICALs). It cannot guarantee factual accuracy, that's still your call.
+Original inspiration:
+
+- Jordan Gibbs' original hyperresearch repository: https://github.com/jordan-gibbs/hyperresearch
+
+This repository keeps the core idea and adapts it for a Codex-first workflow with a Codex-native bundle, dynamic effort routing, and the same persistent vault model.
 
 ---
 
 ## Requirements
 
-- Python 3.11+
-- [Codex CLI](https://openai.com/codex/)
-- [Claude Code](https://claude.com/claude-code)
+- Python 3.11 to 3.13
+- Codex CLI for the Codex path
+- Claude Code for the legacy Claude path
 
 ---
 
 ## License
 
 [MIT](LICENSE)
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=jordan-gibbs/hyperresearch&type=Date)](https://star-history.com/#jordan-gibbs/hyperresearch&Date)

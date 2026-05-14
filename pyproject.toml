@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "hyperresearch"
 version = "0.8.5"
-description = "Codex CLI and Claude Code harness for disciplined, adversarially-audited deep research with full provenance."
+description = "Codex-first deep research harness for disciplined, adversarially-audited research with full provenance."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<3.14"
@@ -48,9 +48,9 @@ hyperresearch = "hyperresearch.cli:app"
 hpr = "hyperresearch.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/jordan-gibbs/hyperresearch"
-Repository = "https://github.com/jordan-gibbs/hyperresearch"
-Issues = "https://github.com/jordan-gibbs/hyperresearch/issues"
+Homepage = "https://github.com/federicomeschini/hyperresearch"
+Repository = "https://github.com/federicomeschini/hyperresearch"
+Issues = "https://github.com/federicomeschini/hyperresearch/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hyperresearch"]
