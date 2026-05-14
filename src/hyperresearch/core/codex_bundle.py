@@ -12,9 +12,13 @@ The implementation is intentionally conservative: it preserves user-owned
 content in existing config files and only updates the Codex-specific sections
 hyperresearch needs.
 
-Role selection is tiered: `gpt-5.4-mini` handles high-throughput extraction
-and formatting, `gpt-5.4` handles mid-depth analysis and editing, and
-`gpt-5.5` handles the hardest adversarial and final-arbitration roles.
+Role selection is tiered, but the important knob here is reasoning effort:
+`gpt-5.4-mini` handles high-throughput extraction and formatting,
+`gpt-5.4` handles mid-depth analysis and editing, and `gpt-5.5` handles
+the hardest adversarial and final-arbitration roles.
+
+A tiny read-only router agent decides which reasoning effort is appropriate
+before a heavier role is spawned.
 """
 
 from __future__ import annotations
@@ -59,8 +63,13 @@ class _CodexModelPolicy:
 
 _CODEx_LIGHT_POLICY = _CodexModelPolicy(
     model="gpt-5.4-mini",
-    reasoning_effort="low",
+    reasoning_effort="medium",
     rationale="high-throughput extraction and formatting",
+)
+_CODEx_ROUTER_POLICY = _CodexModelPolicy(
+    model="gpt-5.4-mini",
+    reasoning_effort="low",
+    rationale="preflight task triage and reasoning-effort selection",
 )
 _CODEx_STANDARD_POLICY = _CodexModelPolicy(
     model="gpt-5.4",
@@ -77,6 +86,7 @@ _CODEx_LIGHT_AGENT_NAMES = {
     "hyperresearch-fetcher",
     "hyperresearch-readability-recommender",
 }
+_CODEx_ROUTER_AGENT_NAME = "hyperresearch-effort-router"
 _CODEx_STANDARD_AGENT_NAMES = {
     "hyperresearch-loci-analyst",
     "hyperresearch-depth-investigator",
@@ -93,6 +103,24 @@ _CODEx_FRONTIER_AGENT_NAMES = {
     "hyperresearch-instruction-critic",
     "hyperresearch-synthesizer",
 }
+
+CODEX_EFFORT_ROUTER_INSTRUCTIONS = """\
+You are the effort router for hyperresearch on Codex.
+
+Your job is to read the task brief and recommend the cheapest safe
+reasoning budget before a heavier agent is chosen.
+
+Output exactly one JSON object with:
+- `reasoning_effort`: one of `low`, `medium`, `high`
+- `why`: a short one-sentence justification
+
+Rules:
+- Use `low` only for quick classification, scoping, and routing.
+- Use `medium` for normal fetch / analyze / edit work.
+- Use `high` only when the task is adversarial, final, or costly to get wrong.
+- Prefer the cheapest safe option. If uncertain, choose `medium`.
+- Keep the response terse. No extra commentary.
+"""
 
 _CODEx_AGENT_SPECS: tuple[tuple[str, str], ...] = (
     ("hyperresearch-fetcher", RESEARCHER_AGENT),
@@ -137,6 +165,8 @@ def _write_text_if_changed(path: Path, content: str) -> bool:
 
 
 def _codex_model_policy(agent_name: str) -> _CodexModelPolicy:
+    if agent_name == _CODEx_ROUTER_AGENT_NAME:
+        return _CODEx_ROUTER_POLICY
     if agent_name in _CODEx_FRONTIER_AGENT_NAMES:
         return _CODEx_FRONTIER_POLICY
     if agent_name in _CODEx_LIGHT_AGENT_NAMES:
@@ -288,6 +318,27 @@ def _install_codex_entry_skill(root: Path, hpr_path: str) -> str | None:
     skill_root.mkdir(parents=True, exist_ok=True)
     dest_path = skill_root / "hyperresearch" / "SKILL.md"
     if not _write_text_if_changed(dest_path, content):
+        return None
+    return f"Codex: {dest_path.as_posix()}"
+
+
+def _install_codex_effort_router(root: Path) -> str | None:
+    """Install the cheap preflight agent that selects the effort budget."""
+    agents_dir = root / ".codex" / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+
+    toml = _render_agent_toml(
+        name=_CODEx_ROUTER_AGENT_NAME,
+        description="Fast preflight router that picks the cheapest safe reasoning effort.",
+        developer_instructions=CODEX_EFFORT_ROUTER_INSTRUCTIONS,
+        model=_CODEx_ROUTER_POLICY.model,
+        model_policy=_CODEx_ROUTER_POLICY,
+        sandbox_mode="read-only",
+        nickname_candidates=("effort router", "router", "preflight"),
+    )
+
+    dest_path = agents_dir / f"{_CODEx_ROUTER_AGENT_NAME}.toml"
+    if not _write_text_if_changed(dest_path, toml):
         return None
     return f"Codex: {dest_path.as_posix()}"
 
@@ -465,6 +516,10 @@ def install_codex_project_bundle(vault_root: Path, hpr_path: str = "hyperresearc
     if steps:
         actions.append(steps)
 
+    router = _install_codex_effort_router(vault_root)
+    if router:
+        actions.append(router)
+
     actions.extend(_install_codex_agents(vault_root, hpr_path))
 
     config = _update_codex_config(vault_root)
@@ -487,6 +542,10 @@ def install_codex_global_bundle(home: Path | None = None, hpr_path: str = "hyper
 
     # Global installs keep the shared entry skill and agent roles, but skip
     # the per-project step skills. Those are installed lazily on first use.
+    router = _install_codex_effort_router(home)
+    if router:
+        actions.append(router)
+
     actions.extend(_install_codex_agents(home, hpr_path))
 
     config = _update_codex_config(home)
@@ -510,3 +569,13 @@ def install_codex_step_skills(root: Path, hpr_path: str = "hyperresearch") -> st
 def refresh_codex_project_bundle(vault_root: Path, hpr_path: str = "hyperresearch") -> list[str]:
     """Refresh the project Codex bundle."""
     return install_codex_project_bundle(vault_root, hpr_path=hpr_path)
+
+
+def build_codex_effort_router_prompt(task: str) -> str:
+    """Render the shared Codex effort-router prompt for a task brief."""
+    return (
+        CODEX_EFFORT_ROUTER_INSTRUCTIONS.rstrip()
+        + "\n\nTask brief:\n"
+        + task.strip()
+        + "\n"
+    )

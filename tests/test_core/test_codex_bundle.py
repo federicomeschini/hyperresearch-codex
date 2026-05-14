@@ -29,11 +29,13 @@ def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
     entry_skill = root / ".agents" / "skills" / "hyperresearch" / "SKILL.md"
     step_skill = root / ".agents" / "skills" / "hyperresearch-1-decompose" / "SKILL.md"
     fetcher = root / ".codex" / "agents" / "hyperresearch-fetcher.toml"
+    router = root / ".codex" / "agents" / "hyperresearch-effort-router.toml"
     config = root / ".codex" / "config.toml"
 
     assert entry_skill.exists()
     assert step_skill.exists()
     assert fetcher.exists()
+    assert router.exists()
     assert config.exists()
 
     entry_text = entry_skill.read_text(encoding="utf-8")
@@ -42,9 +44,18 @@ def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
 
     fetcher_text = fetcher.read_text(encoding="utf-8")
     assert 'model = "gpt-5.4-mini"' in fetcher_text
-    assert 'model_reasoning_effort = "low"' in fetcher_text
+    assert 'model_reasoning_effort = "medium"' in fetcher_text
     assert 'developer_instructions = """' in fetcher_text
     assert "C:/Tools/hyperresearch.exe" in fetcher_text
+
+    router_text = router.read_text(encoding="utf-8")
+    assert 'model = "gpt-5.4-mini"' in router_text
+    assert 'model_reasoning_effort = "low"' in router_text
+    assert 'sandbox_mode = "read-only"' in router_text
+    assert "reasoning-effort selection" in router_text
+    assert "- `reasoning_effort`" in router_text
+    assert "- `tier`" not in router_text
+    assert "- `model`" not in router_text
 
     corpus_critic = root / ".codex" / "agents" / "hyperresearch-corpus-critic.toml"
     patcher = root / ".codex" / "agents" / "hyperresearch-patcher.toml"
@@ -77,6 +88,7 @@ def test_install_codex_global_bundle_skips_step_skills(tmp_path: Path):
 
     assert (home / ".agents" / "skills" / "hyperresearch" / "SKILL.md").exists()
     assert not (home / ".agents" / "skills" / "hyperresearch-1-decompose" / "SKILL.md").exists()
+    assert (home / ".codex" / "agents" / "hyperresearch-effort-router.toml").exists()
     assert (home / ".codex" / "agents" / "hyperresearch-synthesizer.toml").exists()
     assert (home / ".codex" / "config.toml").exists()
 

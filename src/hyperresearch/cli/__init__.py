@@ -59,6 +59,7 @@ def main(
 # Root-level commands
 from hyperresearch.cli.dedup import dedup as _dedup
 from hyperresearch.cli.fetch import fetch as _fetch
+from hyperresearch.cli.codex_cmd import app as codex_app
 from hyperresearch.cli.import_cmd import import_vault as _import
 from hyperresearch.cli.install import install as _install
 from hyperresearch.cli.main import init as _init
@@ -126,6 +127,7 @@ from hyperresearch.cli.assets import app as assets_app
 from hyperresearch.cli.link import app as link_app
 from hyperresearch.cli.sources import app as sources_app
 
+app.add_typer(codex_app, name="codex", help="Codex task runner.")
 app.add_typer(sources_app, name="sources", help="Fetched web sources.")
 app.add_typer(assets_app, name="assets", help="Downloaded images, screenshots, and media.")
 app.add_typer(link_app, name="link", help="Auto-discover and insert wiki-links.")

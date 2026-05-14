@@ -194,12 +194,20 @@ def _build_blurb(platform: str, hpr: str) -> str:
 
     normalized = _normalize_platform(platform)
     template = CLAUDE_BLURB_TEMPLATE if normalized == "claude" else CODEX_BLURB_TEMPLATE
-    return template.format(
+    blurb = template.format(
         marker=HYPERRESEARCH_SECTION_MARKER,
         end_marker=HYPERRESEARCH_SECTION_END,
         hpr=hpr,
         today=date.today().isoformat(),
     )
+    if normalized == "codex":
+        blurb += (
+            "\n### Effort routing\n\n"
+            "When a task is still ambiguous, use `hyperresearch-effort-router` "
+            "first to choose the cheapest safe reasoning effort before "
+            "spawning a heavier agent.\n"
+        )
+    return blurb
 
 
 def inject_agent_docs(vault_root: Path, platform: str = "claude") -> list[str]:

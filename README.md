@@ -30,6 +30,9 @@ pip install hyperresearch && hyperresearch install --platform codex
 
 Then use `hyperresearch research "<anything>"` in Codex CLI.
 
+For direct Codex tasks that should route reasoning effort automatically, use
+`hyperresearch codex run "<task>"`.
+
 Use `hyperresearch install --platform claude` if you want the legacy Claude Code hook flow instead.
 
 The 16-step skill pipeline below runs on both platforms. `hyperresearch install --platform codex` provisions the Codex-native bundle (`AGENTS.md`, `.agents/skills`, `.codex/agents`, `.codex/config.toml`); `--platform claude` keeps the legacy Claude Code hook flow.
@@ -160,7 +163,7 @@ After the academic sweep, run web searches for context, news, non-academic angle
 
 - It doesn't replace your judgment on which sources matter. The agent picks, you steer.
 - It can't fetch what's behind a paywall you haven't logged into.
-- It runs on the host platform's model roster via the subagent bundle: Codex uses `gpt-5.4-mini` for extraction and formatting, `gpt-5.4` for mid-depth analysis and editing, and `gpt-5.5` for the hardest adversarial or final-arbitration roles. Costs scale with tier and corpus size.
+- It runs on the host platform's model roster via the subagent bundle: Codex uses `gpt-5.4-mini`, `gpt-5.4`, and `gpt-5.5` with `model_reasoning_effort` tuned to `medium` for the operational tiers and `high` for the hardest adversarial or final-arbitration roles. A tiny `hyperresearch-effort-router` agent does a cheap preflight pass and recommends the cheapest safe reasoning effort before you spend heavy reasoning. Costs scale with tier and corpus size.
 - The lint gate catches **structural** failures (missing scaffold, broken provenance, unresolved CRITICALs). It cannot guarantee factual accuracy, that's still your call.
 
 ---
