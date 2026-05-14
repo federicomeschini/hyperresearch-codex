@@ -1,6 +1,6 @@
 # hyperresearch
 
-Codex-first research harness with a persistent vault, a 16-step research workflow, and an automatic reasoning-effort preflight for direct Codex tasks.
+Codex-first research harness with a persistent vault, a 16-step research workflow, Codex-native skills/subagents, and an automatic reasoning-effort preflight for direct Codex tasks.
 
 This fork adapts the original hyperresearch idea to Codex CLI first, while keeping Claude Code compatibility in the library for the legacy hook flow.
 
@@ -8,9 +8,15 @@ This fork adapts the original hyperresearch idea to Codex CLI first, while keepi
 
 - Creates a vault for research notes, sources, and indexes.
 - Runs the research workflow as a sequence of small agent steps.
-- Installs Codex-native agent bundles under `.codex/` and `.agents/`.
+- Installs the complete hyperresearch workflow as Codex-native skills and subagents under `.agents/` and `.codex/`.
 - Routes direct Codex tasks through a cheap preflight agent before the main run.
 - Keeps the vault rebuildable from markdown.
+
+## Codex parity goal
+
+The Codex branch is a full transposition of the Claude Code workflow, not a smaller rewrite. The same research pipeline, step skills, vault commands, source handling, lint/repair flow, and final-report conventions are available through the Codex path. The Codex path adds platform-native extras on top: custom subagent TOML, `.agents/skills` installation, `AGENTS.md` injection, and direct-task effort routing.
+
+Claude Code compatibility remains in the library so existing vaults can still run the legacy hook flow with `--platform claude`.
 
 ## Research workflow
 
@@ -63,10 +69,10 @@ Use the legacy Claude Code path only if you need the old hook flow:
 hyperresearch install --platform claude
 ```
 
-Global install is available too:
+Global install is available too. Codex remains the default platform:
 
 ```bash
-hyperresearch install --global
+hyperresearch install --global --platform codex
 ```
 
 ## Codex path
@@ -78,7 +84,7 @@ hyperresearch install --global
 - `.codex/agents/*.toml`
 - `.codex/config.toml`
 
-The Codex install also adds a tiny router agent. It does not change the model roster. It only recommends `reasoning.effort` for the task so the main Codex run does not spend more compute than needed.
+The Codex install mirrors the Claude Code roster and adds one extra router agent. The router only recommends `reasoning.effort` for direct tasks so the main Codex run does not spend more compute than needed.
 
 The launcher command is:
 
@@ -147,6 +153,16 @@ There are two layers in the Codex setup:
 2. dynamic effort routing for direct tasks
 
 That keeps the system predictable while still letting cheap tasks stay cheap.
+
+## Claude Code compatibility
+
+The legacy Claude path is still available for existing users and regression checks:
+
+- `hyperresearch install --platform claude`
+- `hyperresearch install --global --platform claude`
+- `hyperresearch install --steps-only . --platform claude`
+
+The Claude path writes `.claude/` assets and the PreToolUse hook. The Codex path writes `.agents/`, `.codex/`, and `AGENTS.md`; it does not install Claude hooks.
 
 ## Requirements
 

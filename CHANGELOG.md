@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] - Codex-first adaptation hardening
+
+### Changed
+
+- **Codex parity documented.** README and CONTRIBUTING now describe the Codex path as the primary, complete transposition of the Claude Code workflow, with Claude Code retained only for legacy hook compatibility.
+- **Codex AGENTS.md injection is idempotent.** The effort-routing guidance now lives inside the managed hyperresearch block, so repeated `hyperresearch install --platform codex` or `hyperresearch repair` runs do not duplicate it.
+- **Codex skill rendering tightened.** Transformed step-skill calls now render as valid Codex-oriented instructions instead of malformed nested Markdown.
+- **Codex bundle tests expanded.** The generated custom-agent TOML is parsed during tests, the Codex agent roster is checked against the Claude roster plus the extra effort router, and repeated Codex docs injection is covered.
+
 ## [0.8.5] - 2026-04-29
 
 ### Reports self-title; wikilinks become the default citation system

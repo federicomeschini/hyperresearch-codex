@@ -1,76 +1,77 @@
-# Contributing to kasten
+# Contributing to hyperresearch
 
-Thank you for your interest in contributing.
+hyperresearch is a Codex-first adaptation of the original Claude Code research workflow. Keep the Codex path complete, but do not remove Claude Code compatibility unless the change is explicitly about retiring it.
 
 ## Development setup
 
 ```bash
-git clone https://github.com/jordan-gibbs/kasten.git
-cd kasten
+git clone https://github.com/federicomeschini/hyperresearch.git
+cd hyperresearch
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
 ```
 
+If you are running tests without an editable install, set `PYTHONPATH=src`.
+
+## Platform smoke tests
+
+Codex is the primary install path:
+
+```bash
+hyperresearch install --platform codex --json
+hyperresearch repair --json
+```
+
+Use the Claude Code path only to verify legacy hook compatibility:
+
+```bash
+hyperresearch install --platform claude --json
+```
+
+The Codex install should create `AGENTS.md`, `.agents/skills/`, `.codex/agents/`, and `.codex/config.toml`. The Claude install should continue to create `CLAUDE.md`, `.claude/skills/`, `.claude/agents/`, and the PreToolUse hook.
+
 ## Running tests
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/ -q
 ```
 
-All tests must pass before submitting a PR. The test suite runs in under 30 seconds.
+Focused checks for the Codex adaptation:
+
+```bash
+python -m pytest tests/test_core/test_codex_bundle.py tests/test_cli/test_codex_cmd.py tests/test_core/test_vault.py -q
+```
+
+All tests should pass before submitting a PR. The Codex bundle tests verify that the generated agent TOML parses, the Claude step roster is fully transposed, and repeated doc injection is idempotent.
 
 ## Code style
 
-This project uses [ruff](https://docs.astral.sh/ruff/) for linting:
-
 ```bash
-ruff check src/
-ruff format src/
+ruff check src tests
+ruff format src tests
+mypy src/hyperresearch
 ```
 
-Configuration is in `pyproject.toml`. Line length is 100 characters.
+Configuration lives in `pyproject.toml`. Keep code changes narrow and prefer existing installer patterns over new abstractions.
 
-## Type checking
+## Documentation
 
-```bash
-mypy src/kasten/
-```
+Update `README.md` when user-facing commands, install outputs, agent rosters, or platform defaults change. Update `CHANGELOG.md` when behavior changes. Do not document generated install outputs as source files; the source of truth is:
 
-Strict mode is enabled in `pyproject.toml`.
+- skills: `src/hyperresearch/skills/*.md`
+- Claude agent templates: `src/hyperresearch/core/hooks.py`
+- Codex transposition: `src/hyperresearch/core/codex_bundle.py`
+- platform docs injection: `src/hyperresearch/core/agent_docs.py`
 
-## Submitting changes
+## Project structure
 
-1. Fork the repository.
-2. Create a branch from `main`.
-3. Make your changes with tests.
-4. Run `ruff check src/` and `python -m pytest tests/`.
-5. Open a pull request against `main`.
+- `src/hyperresearch/cli/` - Typer commands and platform entry points
+- `src/hyperresearch/core/` - vault management, bundle installers, sync, config, and agent docs
+- `src/hyperresearch/skills/` - the 16-step hyperresearch skill chain
+- `src/hyperresearch/mcp/` - read-only MCP server entry point
+- `src/hyperresearch/search/` - FTS5 search and filters
+- `src/hyperresearch/models/` - Pydantic/domain models
+- `tests/` - pytest suite
 
-Keep PRs focused on a single change. Include a clear description of what changed and why.
-
-## Reporting issues
-
-Open an issue at [github.com/jordan-gibbs/kasten/issues](https://github.com/jordan-gibbs/kasten/issues). Include:
-
-- What you expected to happen
-- What actually happened
-- Steps to reproduce
-- kasten version (`kasten --version`)
-- Python version and OS
-
-## Architecture overview
-
-- `src/kasten/core/` -- vault management, sync engine, frontmatter parsing, SQLite schema
-- `src/kasten/cli/` -- typer CLI commands, output formatting
-- `src/kasten/search/` -- FTS5 search engine, filters, ranking
-- `src/kasten/models/` -- Pydantic models for notes, output envelopes
-- `src/kasten/graph/` -- link parsing (shared patterns)
-- `src/kasten/indexgen/` -- auto-generated index page builder
-- `src/kasten/ingest/` -- file, web, PDF ingestion
-- `src/kasten/compile/` -- LLM compilation pipeline
-- `src/kasten/llm/` -- provider abstraction (OpenAI, Anthropic, Ollama)
-- `src/kasten/serve/` -- lightweight web UI server
-- `tests/` -- pytest test suite
-
-The key design principle: markdown files are the source of truth, SQLite is a derived cache that can be rebuilt at any time with `kasten sync --force`.
+Markdown notes remain the source of truth. SQLite and generated agent bundles are derived state that can be rebuilt with `hyperresearch sync`, `hyperresearch repair`, or `hyperresearch install`.

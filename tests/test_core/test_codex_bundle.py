@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 from hyperresearch.core.codex_bundle import (
+    _CODEx_AGENT_SPECS,
     install_codex_global_bundle,
     install_codex_project_bundle,
     install_codex_step_skills,
 )
+from hyperresearch.core.hooks import _HYPERRESEARCH_STEP_SKILLS
 from hyperresearch.core.vault import Vault
 
 
@@ -40,7 +43,10 @@ def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
 
     entry_text = entry_skill.read_text(encoding="utf-8")
     assert ".agents/skills" in entry_text
+    assert ".claude/skills" not in entry_text
     assert "gpt-5.5" in entry_text
+    assert "Load and follow the hyperresearch-1-decompose skill." in entry_text
+    assert "Use the `hyperresearch-" not in entry_text
 
     fetcher_text = fetcher.read_text(encoding="utf-8")
     assert 'model = "gpt-5.4-mini"' in fetcher_text
@@ -80,6 +86,14 @@ def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
     assert "max_threads = 16" in config_text
     assert "max_depth = 4" in config_text
 
+    agent_files = sorted((root / ".codex" / "agents").glob("*.toml"))
+    assert len(agent_files) == len(_CODEx_AGENT_SPECS) + 1
+    for agent_file in agent_files:
+        parsed = tomllib.loads(agent_file.read_text(encoding="utf-8"))
+        assert parsed["name"]
+        assert parsed["description"]
+        assert parsed["developer_instructions"]
+
 
 def test_install_codex_global_bundle_skips_step_skills(tmp_path: Path):
     home = tmp_path / "home"
@@ -101,3 +115,5 @@ def test_install_codex_step_skills_is_idempotent(tmp_path: Path):
     assert first is not None
     assert second is None
     assert (root / ".agents" / "skills" / "hyperresearch-16-readability-audit" / "SKILL.md").exists()
+    installed = sorted(path.parent.name for path in (root / ".agents" / "skills").glob("*/SKILL.md"))
+    assert installed == sorted(_HYPERRESEARCH_STEP_SKILLS)

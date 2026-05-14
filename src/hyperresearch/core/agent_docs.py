@@ -22,12 +22,19 @@ AGENT_PLATFORM_LABELS = {
 
 HYPERRESEARCH_SECTION_MARKER = "<!-- hyperresearch:start -->"
 HYPERRESEARCH_SECTION_END = "<!-- hyperresearch:end -->"
+CODEX_EFFORT_ROUTING_SECTION = """
+### Effort routing
+
+When a task is still ambiguous, use `hyperresearch-effort-router` first to choose the cheapest safe reasoning effort before spawning a heavier agent.
+"""
 
 CLAUDE_BLURB_TEMPLATE = """
 {marker}
 ## Research Base (hyperresearch) - Today is {today}
 
 **CLI path: `{hpr}`** - use this exact path for every hyperresearch command. It may not be on your system PATH.
+
+**Agent platform: {platform_label}.**
 
 **Paths in this document are relative to your current working directory**, not to the CLI binary's location. Use `research/notes/final_report_<vault_tag>.md` (not a prefix with the binary path) when you save files.
 
@@ -36,6 +43,8 @@ This project uses hyperresearch as an agent-driven research knowledge base. The 
 ### How to do research
 
 **Run a research session with `/hyperresearch <query>`.** This invokes the V8 16-step pipeline. The entry skill at `.claude/skills/hyperresearch/SKILL.md` is a thin router. The 16 step procedures live in their own skills (`hyperresearch-1-decompose` through `hyperresearch-16-readability-audit`) and are loaded fresh into context via the `Skill` tool when each step runs. This solves context-compaction problems in long runs: each step's procedure lands in context only when needed. Read the entry skill before you start a research session; it explains the chain mechanics.
+
+For basic CLI-driven source gathering outside the agent pipeline, use `hyperresearch research "<query>"`.
 
 Step 1 classifies the query into one of two tiers (`light` or `full`) and the rest of the pipeline scales accordingly - short bounded queries skip the depth investigations, critics, and patcher (~30-40 min); argumentative deep-research queries run all 16 steps with adversarial review (~1.5-2.5 hours).
 
@@ -148,13 +157,18 @@ def transform_claude_markdown_for_codex(content: str, *, model_label: str = "gpt
         transformed = transformed.replace(old, new)
     transformed = re.sub(
         r'Skill\(skill:\s*"([^"]+)"\)',
-        lambda match: f"Use the `{match.group(1)}` skill.",
+        lambda match: f"Load and follow the {match.group(1)} skill.",
         transformed,
     )
     return transformed
 
 
-CODEX_BLURB_TEMPLATE = transform_claude_markdown_for_codex(CLAUDE_BLURB_TEMPLATE)
+CODEX_BLURB_TEMPLATE = transform_claude_markdown_for_codex(
+    CLAUDE_BLURB_TEMPLATE.replace(
+        "{end_marker}",
+        CODEX_EFFORT_ROUTING_SECTION.rstrip() + "\n{end_marker}",
+    )
+)
 
 
 def _normalize_platform(platform: str) -> str:
@@ -198,15 +212,9 @@ def _build_blurb(platform: str, hpr: str) -> str:
         marker=HYPERRESEARCH_SECTION_MARKER,
         end_marker=HYPERRESEARCH_SECTION_END,
         hpr=hpr,
+        platform_label=AGENT_PLATFORM_LABELS[normalized],
         today=date.today().isoformat(),
     )
-    if normalized == "codex":
-        blurb += (
-            "\n### Effort routing\n\n"
-            "When a task is still ambiguous, use `hyperresearch-effort-router` "
-            "first to choose the cheapest safe reasoning effort before "
-            "spawning a heavier agent.\n"
-        )
     return blurb
 
 
@@ -230,8 +238,19 @@ def _inject_into_file(filepath: Path, blurb: str, filename: str) -> str | None:
         content = filepath.read_text(encoding="utf-8-sig")
 
         if HYPERRESEARCH_SECTION_MARKER in content:
+            legacy_codex_effort = ""
+            if filename == "AGENTS.md":
+                legacy_codex_effort = (
+                    r"(?:\n+### Effort routing\n\n"
+                    r"When a task is still ambiguous, use `hyperresearch-effort-router` "
+                    r"first to choose the cheapest safe reasoning effort before "
+                    r"spawning a heavier agent\.\n?)*"
+                )
             pattern = re.compile(
-                re.escape(HYPERRESEARCH_SECTION_MARKER) + r".*?" + re.escape(HYPERRESEARCH_SECTION_END),
+                re.escape(HYPERRESEARCH_SECTION_MARKER)
+                + r".*?"
+                + re.escape(HYPERRESEARCH_SECTION_END)
+                + legacy_codex_effort,
                 re.DOTALL,
             )
             new_content = pattern.sub(lambda _: blurb.strip(), content)

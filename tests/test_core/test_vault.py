@@ -79,3 +79,16 @@ def test_init_codex_creates_agents_md(tmp_path: Path):
     assert "Codex CLI" in content
     assert "hyperresearch research" in content
     assert not (vault.root / "CLAUDE.md").exists()
+
+
+def test_codex_agent_docs_are_idempotent(tmp_path: Path):
+    vault = Vault.init(tmp_path / "kb-codex-docs", agent_platform="codex")
+
+    from hyperresearch.core.agent_docs import inject_agent_docs
+
+    inject_agent_docs(vault.root, platform="codex")
+    inject_agent_docs(vault.root, platform="codex")
+
+    content = (vault.root / "AGENTS.md").read_text()
+    assert content.count("### Effort routing") == 1
+    assert content.find("### Effort routing") < content.find("<!-- hyperresearch:end -->")

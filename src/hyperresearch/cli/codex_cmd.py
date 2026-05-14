@@ -1,4 +1,4 @@
-"""Codex task runner â€” route task effort automatically, then execute Codex."""
+"""Codex task runner - route task effort automatically, then execute Codex."""
 
 from __future__ import annotations
 
