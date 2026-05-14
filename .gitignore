@@ -22,8 +22,11 @@ draco-bench/
 # in src/hyperresearch/skills/ (skills) and src/hyperresearch/core/hooks.py
 # (agent templates).
 .claude/
+.agents/
+.codex/
 CLAUDE.md
 AGENTS.md
+!/AGENTS.md
 GEMINI.md
 
 # Per-vault research output

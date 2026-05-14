@@ -22,6 +22,7 @@ def config_show(
 
     data = {
         "vault_name": config.name,
+        "agent_platform": config.agent_platform,
         "vault_path": str(vault.root),
         "research_dir": config.research_dir,
         "web_provider": config.web_provider,
@@ -56,6 +57,7 @@ def config_set(
     # Map dot-notation keys to config attributes
     key_map = {
         "vault.name": "name",
+        "vault.agent_platform": "agent_platform",
         "vault.research_dir": "research_dir",
         "web.provider": "web_provider",
         "web.profile": "web_profile",
@@ -98,6 +100,7 @@ def config_get(
 
     key_map = {
         "vault.name": "name",
+        "vault.agent_platform": "agent_platform",
         "vault.research_dir": "research_dir",
         "web.provider": "web_provider",
         "web.profile": "web_profile",
@@ -125,12 +128,12 @@ def config_get(
 def config_agent_docs(
     json_output: bool = typer.Option(False, "--json", "-j", help="JSON output"),
 ) -> None:
-    """Update CLAUDE.md with the latest hyperresearch blurb."""
+    """Update the agent instructions file with the latest hyperresearch blurb."""
     from hyperresearch.core.agent_docs import inject_agent_docs
     from hyperresearch.core.vault import Vault
 
     vault = Vault.discover()
-    modified = inject_agent_docs(vault.root)
+    modified = inject_agent_docs(vault.root, platform=vault.config.agent_platform)
 
     if json_output:
         output(success({"modified": modified}, vault=str(vault.root)), json_mode=True)
@@ -139,4 +142,5 @@ def config_agent_docs(
             for m in modified:
                 console.print(f"  [green]{m}[/]")
         else:
-            console.print("[dim]CLAUDE.md already up to date.[/]")
+            doc_name = "AGENTS.md" if vault.config.agent_platform == "codex" else "CLAUDE.md"
+            console.print(f"[dim]{doc_name} already up to date.[/]")

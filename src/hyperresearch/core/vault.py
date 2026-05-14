@@ -95,7 +95,12 @@ class Vault:
         self.close()
 
     @staticmethod
-    def init(root: Path, name: str = "Research Base", research_dir: str = "research") -> Vault:
+    def init(
+        root: Path,
+        name: str = "Research Base",
+        research_dir: str = "research",
+        agent_platform: str = "claude",
+    ) -> Vault:
         """Initialize a new vault at the given path."""
         root = root.resolve()
         hyperresearch_dir = root / HYPERRESEARCH_DIR
@@ -115,7 +120,7 @@ class Vault:
         (kb_dir / "temp").mkdir(exist_ok=True)
 
         # Write config
-        config = VaultConfig(name=name, research_dir=research_dir)
+        config = VaultConfig(name=name, research_dir=research_dir, agent_platform=agent_platform)
         config.save(hyperresearch_dir / CONFIG_FILE)
 
         # Initialize database
@@ -136,9 +141,9 @@ class Vault:
             "# {{ title }}\n\n"
         )
 
-        # Inject CLAUDE.md at vault root
+        # Inject the agent instructions file at vault root.
         from hyperresearch.core.agent_docs import inject_agent_docs
-        inject_agent_docs(root)
+        inject_agent_docs(root, platform=agent_platform)
 
         return vault
 

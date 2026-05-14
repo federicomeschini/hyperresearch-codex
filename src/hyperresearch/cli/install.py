@@ -1,4 +1,4 @@
-"""Install command — one-step setup: vault init + agent hooks + docs injection."""
+"""Install command — one-step setup: vault init + platform bundle + docs injection."""
 
 from __future__ import annotations
 
@@ -13,20 +13,25 @@ from hyperresearch.models.output import error, success
 def install(
     path: str = typer.Argument(".", help="Path to install in"),
     name: str = typer.Option("Research Base", "--name", "-n", help="Vault name"),
+    platform: str = typer.Option(
+        "codex",
+        "--platform",
+        help="Target agent platform: codex or claude",
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="JSON output"),
     global_install: bool = typer.Option(
         False,
         "--global",
         "-g",
-        help="Install Claude Code entry skill + agents to ~/.claude/ so /hyperresearch works in every Claude Code session anywhere. Skips vault init, CLAUDE.md, and the 16 step skills (those happen per-project on first /hyperresearch run).",
+        help="Install the platform bundle to your home directory so /hyperresearch works in every Codex or Claude Code session anywhere. Skips vault init and per-project step skills (those happen on first /hyperresearch run in a project).",
     ),
     steps_only: bool = typer.Option(
         False,
         "--steps-only",
-        help="Install only the 16 step skills to <PATH>/.claude/skills/. Used internally by the entry skill bootstrap on first /hyperresearch invocation in a project. Not normally invoked by users.",
+        help="Install only the 16 step skills to <PATH>/.agents/skills/ for Codex or <PATH>/.claude/skills/ for Claude. Used internally by the entry skill bootstrap on first /hyperresearch invocation in a project. Not normally invoked by users.",
     ),
 ) -> None:
-    """Install hyperresearch: init vault + inject CLAUDE.md + install Claude Code hooks."""
+    """Install hyperresearch: init vault + inject agent docs + install the platform bundle."""
     import sys
 
     from hyperresearch.core.hooks import (
@@ -36,13 +41,21 @@ def install(
     )
     from hyperresearch.core.vault import Vault, VaultError
 
+    if platform not in {"claude", "codex"}:
+        raise typer.BadParameter("platform must be 'claude' or 'codex'")
+
     # Steps-only path: lazy install of the 16 step skills to a project's
-    # .claude/skills/. Called by the entry skill's bootstrap on first
-    # /hyperresearch in a project (after a global install). Cheap no-op
-    # on subsequent invocations.
+    # .claude/skills/ or .agents/skills/. Called by the entry skill's
+    # bootstrap on first /hyperresearch in a project (after a global
+    # install). Cheap no-op on subsequent invocations.
     if steps_only:
         target = Path(path).resolve()
-        result = _install_hyperresearch_step_skills(target)
+        if platform == "claude":
+            result = _install_hyperresearch_step_skills(target)
+        else:
+            from hyperresearch.core.codex_bundle import install_codex_step_skills
+
+            result = install_codex_step_skills(target)
         if json_output:
             output(
                 success({"steps_installed": result, "target": str(target)}, vault=None),
@@ -50,23 +63,30 @@ def install(
             )
             return
         if result:
-            console.print(f"[green]Step skills installed:[/] {target}/.claude/skills/")
+            skill_root = ".claude/skills" if platform == "claude" else ".agents/skills"
+            console.print(f"[green]Step skills installed:[/] {target}/{skill_root}/")
             console.print(f"  {result}")
         else:
-            console.print(f"[dim]Step skills already installed at {target}/.claude/skills/[/]")
+            skill_root = ".claude/skills" if platform == "claude" else ".agents/skills"
+            console.print(f"[dim]Step skills already installed at {target}/{skill_root}/[/]")
         return
 
-    # Global install path: only the user-level Claude Code entry skill +
-    # agents. No vault, no CLAUDE.md, no step skills — pure "make the
+    # Global install path: only the user-level entry skill + agents.
+    # No vault, no AGENTS.md/CLAUDE.md, no step skills — pure "make the
     # slash command available everywhere" mode. Step skills install
     # per-project, lazily, when the entry skill bootstrap calls
     # `hyperresearch install --steps-only .` on first invocation.
     if global_install:
+        home = Path.home()
         from hyperresearch.core.agent_docs import _resolve_executable
 
         hpr_path = _resolve_executable()
-        home = Path.home()
-        hook_actions = install_global_hooks(home, hpr_path=hpr_path)
+        if platform == "claude":
+            hook_actions = install_global_hooks(home, hpr_path=hpr_path)
+        else:
+            from hyperresearch.core.codex_bundle import install_codex_global_bundle
+
+            hook_actions = install_codex_global_bundle(home, hpr_path=hpr_path)
 
         if json_output:
             output(
@@ -78,19 +98,28 @@ def install(
             )
             return
 
-        console.print(f"[green]Global install:[/] {home}/.claude/")
+        if platform == "claude":
+            console.print(f"[green]Global install:[/] {home}/.claude/")
+        else:
+            console.print(f"[green]Global install:[/] {home}/.agents/ and {home}/.codex/")
         if hook_actions:
             for action in hook_actions:
                 console.print(f"  {action}")
         else:
             console.print("[dim]All skills and agents already installed.[/]")
         console.print(
-            "\n[bold]Ready.[/] /hyperresearch is now available in every Claude Code session."
+            "\n[bold]Ready.[/] /hyperresearch is now available in every Codex or Claude Code session."
         )
-        console.print(
-            "[dim]On first /hyperresearch run in a project, the vault, research/ folder, "
-            "and the 16 step skills are created in that project's .claude/.[/]"
-        )
+        if platform == "claude":
+            console.print(
+                "[dim]On first /hyperresearch run in a project, the vault, research/ folder, "
+                "and the 16 step skills are created in that project's .claude/.[/]"
+            )
+        else:
+            console.print(
+                "[dim]On first /hyperresearch run in a project, the vault, research/ folder, "
+                "and the Codex bundle are created in that project's .agents/ and .codex/.[/]"
+            )
         return
 
     root = Path(path).resolve()
@@ -101,7 +130,7 @@ def install(
     if is_new and is_interactive:
         from hyperresearch.cli.setup import setup
 
-        setup(path=path, json_output=False)
+        setup(path=path, platform=platform, json_output=False)
         return
 
     # Step 1: Init vault (skip if already exists)
@@ -110,7 +139,7 @@ def install(
         vault_action = "existing"
     except VaultError:
         try:
-            vault = Vault.init(root, name=name)
+            vault = Vault.init(root, name=name, agent_platform=platform)
             vault_action = "created"
         except VaultError as e:
             if json_output:
@@ -119,22 +148,32 @@ def install(
                 console.print(f"[red]Error:[/] {e}")
             raise typer.Exit(1)
 
+    if vault.config.agent_platform != platform:
+        vault.config.agent_platform = platform
+        vault.config.save(vault.config_path)
+
     # Step 2: Resolve the hyperresearch executable path
     from hyperresearch.core.agent_docs import _resolve_executable, inject_agent_docs
 
     hpr_path = _resolve_executable()
 
-    # Step 3: Always re-inject CLAUDE.md (updates blurb + path)
-    doc_actions = inject_agent_docs(root)
+    # Step 3: Always re-inject the platform agent doc (updates blurb + path)
+    doc_actions = inject_agent_docs(root, platform=platform)
 
-    # Step 4: Install Claude Code hook + skills + subagents
-    hook_actions = install_hooks(root, hpr_path=hpr_path)
+    # Step 4: Install the platform-specific bundle.
+    if platform == "claude":
+        hook_actions = install_hooks(root, hpr_path=hpr_path)
+    else:
+        from hyperresearch.core.codex_bundle import install_codex_project_bundle
+
+        hook_actions = install_codex_project_bundle(root, hpr_path=hpr_path)
 
     # Step 3: Auto-configure crawl4ai if installed
     crawl4ai_status = _setup_crawl4ai(vault)
 
     # Step 5: Report
     data = {
+        "platform": platform,
         "vault_path": str(vault.root),
         "vault": vault_action,
         "agent_docs": doc_actions,
@@ -156,11 +195,13 @@ def install(
                 console.print(f"  {action}")
 
         if hook_actions:
-            console.print("[green]Hooks installed:[/]")
+            console.print("[green]Hooks installed:[/]" if platform == "claude" else "[green]Codex bundle installed:[/]")
             for action in hook_actions:
                 console.print(f"  {action}")
-        else:
+        elif platform == "claude":
             console.print("[dim]All hooks already installed.[/]")
+        else:
+            console.print("[dim]Codex bundle already up to date.[/]")
 
         if crawl4ai_status == "configured":
             console.print("[green]crawl4ai:[/] detected, set as default provider + browser ready")
@@ -172,7 +213,8 @@ def install(
                 "For local headless browsing: pip install hyperresearch[crawl4ai]"
             )
 
-        console.print("\n[bold]Ready.[/] Agents will now check the research base before web searches.")
+        ready_label = "Codex" if platform == "codex" else "Claude Code"
+        console.print(f"\n[bold]Ready.[/] {ready_label} will now check the research base before web searches.")
         console.print("[dim]Tip: Run 'hyperresearch setup' for interactive configuration (profile, stealth, etc.)[/]")
 
 

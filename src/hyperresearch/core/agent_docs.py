@@ -1,10 +1,8 @@
-"""Agent documentation integration — inject the hyperresearch blurb into CLAUDE.md.
+"""Agent documentation integration for hyperresearch vaults.
 
-hyperresearch is a Claude Code harness. This module writes/updates CLAUDE.md
-at the vault root so Claude Code auto-loads the research workflow on every
-session. Pre-existing AGENTS.md / GEMINI.md / .github/copilot-instructions.md
-files (from older hyperresearch vaults or other tools) are left alone — we
-don't delete user content, but we no longer generate them either.
+This module writes the agent-facing instructions file at the vault root.
+The target file is platform-aware: Claude uses CLAUDE.md, Codex uses
+AGENTS.md, and other agent platforms can be added later.
 """
 
 from __future__ import annotations
@@ -12,14 +10,24 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+AGENT_DOC_FILENAMES = {
+    "claude": "CLAUDE.md",
+    "codex": "AGENTS.md",
+}
+
+AGENT_PLATFORM_LABELS = {
+    "claude": "Claude Code",
+    "codex": "Codex CLI",
+}
+
 HYPERRESEARCH_SECTION_MARKER = "<!-- hyperresearch:start -->"
 HYPERRESEARCH_SECTION_END = "<!-- hyperresearch:end -->"
 
-HYPERRESEARCH_BLURB = """
+CLAUDE_BLURB_TEMPLATE = """
 {marker}
-## Research Base (hyperresearch) — Today is {today}
+## Research Base (hyperresearch) - Today is {today}
 
-**CLI path: `{hpr}`** — use this exact path for every hyperresearch command. It may not be on your system PATH.
+**CLI path: `{hpr}`** - use this exact path for every hyperresearch command. It may not be on your system PATH.
 
 **Paths in this document are relative to your current working directory**, not to the CLI binary's location. Use `research/notes/final_report_<vault_tag>.md` (not a prefix with the binary path) when you save files.
 
@@ -27,11 +35,11 @@ This project uses hyperresearch as an agent-driven research knowledge base. The 
 
 ### How to do research
 
-**Run a research session with `/hyperresearch <query>`.** This invokes the V8 16-step pipeline. The entry skill at `.claude/skills/hyperresearch/SKILL.md` is a thin ROUTER. The 16 step procedures live in their own skills (`hyperresearch-1-decompose` through `hyperresearch-16-readability-audit`) and are loaded fresh into context via the `Skill` tool when each step runs. This solves V7's context-compaction problem: each step's procedure lands in context only when needed. Read the entry skill before you start a research session; it explains the chain mechanics.
+**Run a research session with `/hyperresearch <query>`.** This invokes the V8 16-step pipeline. The entry skill at `.claude/skills/hyperresearch/SKILL.md` is a thin router. The 16 step procedures live in their own skills (`hyperresearch-1-decompose` through `hyperresearch-16-readability-audit`) and are loaded fresh into context via the `Skill` tool when each step runs. This solves context-compaction problems in long runs: each step's procedure lands in context only when needed. Read the entry skill before you start a research session; it explains the chain mechanics.
 
-Step 1 classifies the query into one of two tiers (`light` or `full`) and the rest of the pipeline scales accordingly — short bounded queries skip the depth investigations, critics, and patcher (~30-40 min); argumentative deep-research queries run all 16 steps with adversarial review (~1.5-2.5 hours).
+Step 1 classifies the query into one of two tiers (`light` or `full`) and the rest of the pipeline scales accordingly - short bounded queries skip the depth investigations, critics, and patcher (~30-40 min); argumentative deep-research queries run all 16 steps with adversarial review (~1.5-2.5 hours).
 
-**Do NOT use WebFetch for source pages** — use `{hpr} fetch` instead. The skill files explain when to fetch vs. search.
+**Do NOT use WebFetch for source pages** - use `{hpr} fetch` instead. The skill files explain when to fetch vs. search.
 
 ### What the skill files own
 
@@ -43,17 +51,17 @@ The skill files own everything about how to research. That includes:
 - Artifact locations (`research/scaffold.md`, `research/prompt-decomposition.json`, `research/loci.json`, `research/comparisons.md`, interim notes, patch / polish logs)
 - The curation pass after every research session
 
-If you need to know how hyperresearch works, read the skill file. This document does NOT duplicate that content — when the skill file and this file disagree, the skill file wins.
+If you need to know how hyperresearch works, read the skill file. This document does NOT duplicate that content - when the skill file and this file disagree, the skill file wins.
 
 ### Canonical research query
 
-In a normal run, the canonical research query is the user's verbatim prompt. In wrapped runs, if `research/prompt.txt` exists, that file is gospel and overrides any wrapping instructions. The pipeline persists the query as `research/query-<vault_tag>.md` with YAML frontmatter — this is the canonical query reference for all downstream layers. Wrapper requirements (save path, citation format, terminal sections) are a separate contract, captured in the scaffold — not pasted into the `## User Prompt (VERBATIM — gospel)` section.
+In a normal run, the canonical research query is the user's verbatim prompt. In wrapped runs, if `research/prompt.txt` exists, that file is gospel and overrides any wrapping instructions. The pipeline persists the query as `research/query-<vault_tag>.md` with YAML frontmatter - this is the canonical query reference for all downstream layers. Wrapper requirements (save path, citation format, terminal sections) are a separate contract, captured in the scaffold - not pasted into the `## User Prompt (VERBATIM - gospel)` section.
 
 ### Academic APIs before web search
 
 For any topic with a research literature, hit academic APIs BEFORE running web searches. They return citation-ranked canonical papers; web search returns derivative commentary.
 
-- **Semantic Scholar:** `https://api.semanticscholar.org/graph/v1/paper/search?query=<q>&fields=title,year,citationCount,externalIds&limit=10` — then citation-chain the top papers forward + backward.
+- **Semantic Scholar:** `https://api.semanticscholar.org/graph/v1/paper/search?query=<q>&fields=title,year,citationCount,externalIds&limit=10` - then citation-chain the top papers forward + backward.
 - **arXiv:** `https://export.arxiv.org/api/query?search_query=cat:cs.LG+AND+all:<q>&sortBy=relevance&max_results=25`
 - **OpenAlex:** `https://api.openalex.org/works?search=<q>&sort=cited_by_count:desc&per-page=15&mailto=research@example.com`
 - **PubMed:** `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=<q>&retmode=json&retmax=20`
@@ -103,9 +111,9 @@ Every research session must end with a curation pass:
 {hpr} status -j                                                          # Overall vault health
 ```
 
-Lifecycle: `draft` → `review` → `evergreen` (or `stale` → `deprecated` → `archive` for outdated material).
+Lifecycle: `draft` -> `review` -> `evergreen` (or `stale` -> `deprecated` -> `archive` for outdated material).
 
-Summaries must be specific — "Mamba achieves linear-time sequence modeling via selective state spaces" beats "Paper about Mamba". Reuse the existing tag vocabulary (`{hpr} tags -j`) rather than inventing new tags.
+Summaries must be specific - "Mamba achieves linear-time sequence modeling via selective state spaces" beats "Paper about Mamba". Reuse the existing tag vocabulary (`{hpr} tags -j`) rather than inventing new tags.
 
 ### Key conventions
 
@@ -116,6 +124,40 @@ Summaries must be specific — "Mamba achieves linear-time sequence modeling via
 {end_marker}
 """
 
+def transform_claude_markdown_for_codex(content: str) -> str:
+    """Translate Claude-oriented instruction text into Codex-oriented text."""
+    transformed = content
+    replacements = [
+        ("CLAUDE.md", "AGENTS.md"),
+        (".claude/skills", ".agents/skills"),
+        (".claude/agents", ".codex/agents"),
+        ("Claude Code", "Codex CLI"),
+        ("Sonnet", "gpt-5.4"),
+        ("Opus", "gpt-5.4"),
+        ("Haiku", "gpt-5.4"),
+        ("Skill tool", "skill-loading mechanism"),
+        ("Task", "Agent"),
+        ("Task tool", "Agent tool"),
+        ("Task calls", "agent calls"),
+    ]
+    for old, new in replacements:
+        transformed = transformed.replace(old, new)
+    transformed = re.sub(
+        r'Skill\(skill:\s*"([^"]+)"\)',
+        lambda match: f"Use the `{match.group(1)}` skill.",
+        transformed,
+    )
+    return transformed
+
+
+CODEX_BLURB_TEMPLATE = transform_claude_markdown_for_codex(CLAUDE_BLURB_TEMPLATE)
+
+
+def _normalize_platform(platform: str) -> str:
+    normalized = platform.strip().lower()
+    if normalized not in AGENT_DOC_FILENAMES:
+        raise ValueError(f"Unsupported agent platform: {platform}")
+    return normalized
 
 
 def _resolve_executable() -> str:
@@ -126,50 +168,45 @@ def _resolve_executable() -> str:
     import shutil
     import sys
 
-    # First: find it relative to the current Python interpreter (venv installs).
-    # This takes priority over PATH to avoid picking up a system-wide install.
     python_dir = Path(sys.executable).parent
     for name in ("hyperresearch", "hyperresearch.exe"):
         candidate = python_dir / name
         if candidate.exists():
             return str(candidate)
-    # Also check Scripts/ subdirectory (Windows venv layout)
     for name in ("hyperresearch", "hyperresearch.exe"):
         candidate = python_dir / "Scripts" / name
         if candidate.exists():
             return str(candidate)
 
-    # Second: check PATH
     which = shutil.which("hyperresearch")
     if which:
         return which
 
-    # Fallback — bare name, hope it's on PATH
     return "hyperresearch"
 
 
-def inject_agent_docs(vault_root: Path) -> list[str]:
-    """Inject hyperresearch docs into CLAUDE.md at the vault root.
-
-    Always writes/updates CLAUDE.md. Does NOT touch AGENTS.md, GEMINI.md,
-    or .github/copilot-instructions.md — hyperresearch is a Claude Code
-    harness now, not a multi-platform tool. Pre-existing non-Claude doc
-    files are left untouched (we don't delete user content), but no new
-    ones are created.
-    """
-    hpr_path = _resolve_executable()
-    # Use forward slashes — bash on Windows eats backslashes
-    hpr_path = hpr_path.replace("\\", "/")
+def _build_blurb(platform: str, hpr: str) -> str:
     from datetime import date
-    blurb = HYPERRESEARCH_BLURB.format(
+
+    normalized = _normalize_platform(platform)
+    template = CLAUDE_BLURB_TEMPLATE if normalized == "claude" else CODEX_BLURB_TEMPLATE
+    return template.format(
         marker=HYPERRESEARCH_SECTION_MARKER,
         end_marker=HYPERRESEARCH_SECTION_END,
-        hpr=hpr_path,
+        hpr=hpr,
         today=date.today().isoformat(),
     )
 
+
+def inject_agent_docs(vault_root: Path, platform: str = "claude") -> list[str]:
+    """Inject hyperresearch docs into the vault root for the target platform."""
+    hpr_path = _resolve_executable().replace("\\", "/")
+    normalized = _normalize_platform(platform)
+    doc_filename = AGENT_DOC_FILENAMES[normalized]
+    blurb = _build_blurb(normalized, hpr_path)
+
     modified: list[str] = []
-    result = _inject_into_file(vault_root / "CLAUDE.md", blurb, "CLAUDE.md")
+    result = _inject_into_file(vault_root / doc_filename, blurb, doc_filename)
     if result:
         modified.append(result)
     return modified

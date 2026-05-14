@@ -17,13 +17,17 @@ console = Console()
 
 def setup(
     path: str = typer.Argument(".", help="Path to set up"),
+    platform: str = typer.Option("codex", "--platform", help="Target agent platform: codex or claude"),
     json_output: bool = typer.Option(False, "--json", "-j", help="JSON output (non-interactive)"),
 ) -> None:
     """Interactive setup — configure hyperresearch step by step."""
+    if platform not in {"claude", "codex"}:
+        raise typer.BadParameter("platform must be 'claude' or 'codex'")
+
     if json_output or not sys.stdin.isatty():
         import subprocess
 
-        cmd = [sys.executable, "-m", "hyperresearch", "install", path]
+        cmd = [sys.executable, "-m", "hyperresearch", "install", path, "--platform", platform]
         if json_output:
             cmd.append("--json")
         raise typer.Exit(subprocess.call(cmd))
@@ -126,8 +130,12 @@ def setup(
         vault = Vault.discover(root)
         console.print(f"  [dim]Vault:[/] {vault.root}")
     except VaultError:
-        vault = Vault.init(root, name=vault_name)
+        vault = Vault.init(root, name=vault_name, agent_platform=platform)
         console.print(f"  [green]Vault created:[/] {vault.root}")
+
+    if vault.config.agent_platform != platform:
+        vault.config.agent_platform = platform
+        vault.config.save(vault.config_path)
 
     # Write config — magic always on when crawl4ai is used
     magic = use_crawl4ai
@@ -137,18 +145,28 @@ def setup(
     vault.config.name = vault_name
     vault.config.save(vault.config_path)
 
-    # Inject CLAUDE.md
+    # Inject the target platform agent doc
     hpr_path = _resolve_executable()
-    doc_actions = inject_agent_docs(root)
+    doc_actions = inject_agent_docs(root, platform=platform)
     for action in doc_actions:
         console.print(f"  [green]Docs:[/] {action}")
 
-    # Install Claude Code hook + skills + subagents
-    hook_actions = install_hooks(root, hpr_path=hpr_path)
-    for action in hook_actions:
-        console.print(f"  [green]Hook:[/] {action}")
-    if not hook_actions:
-        console.print("  [dim]Hooks already installed[/]")
+    # Install the platform-specific bundle.
+    if platform == "claude":
+        bundle_actions = install_hooks(root, hpr_path=hpr_path)
+        action_label = "Hook"
+        idle_message = "  [dim]Hooks already installed[/]"
+    else:
+        from hyperresearch.core.codex_bundle import install_codex_project_bundle
+
+        bundle_actions = install_codex_project_bundle(root, hpr_path=hpr_path)
+        action_label = "Codex bundle"
+        idle_message = "  [dim]Codex bundle already up to date[/]"
+
+    for action in bundle_actions:
+        console.print(f"  [green]{action_label}:[/] {action}")
+    if not bundle_actions:
+        console.print(idle_message)
 
     # Install browser if needed
     if use_crawl4ai:
@@ -164,7 +182,7 @@ def setup(
     summary.add_row("Provider", f"[bold]{provider}[/]")
     summary.add_row("Profile", f"[bold]{profile_desc}[/]")
     summary.add_row("Stealth", "[bold]on[/]" if magic else "[dim]off[/]")
-    summary.add_row("Platform", "[bold]Claude Code[/]")
+    summary.add_row("Platform", f"[bold]{'Codex CLI' if platform == 'codex' else 'Claude Code'}[/]")
     summary.add_row("CLI", f"[dim]{hpr_path}[/]")
 
     console.print(

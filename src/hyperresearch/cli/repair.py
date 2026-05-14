@@ -15,7 +15,7 @@ def repair(
     enrich: bool = typer.Option(True, "--enrich/--no-enrich", help="Auto-tag and auto-summarize notes"),
     promote_notes: bool = typer.Option(True, "--promote/--no-promote", help="Auto-promote qualifying notes"),
     rebuild_index: bool = typer.Option(True, "--index/--no-index", help="Rebuild index pages"),
-    update_docs: bool = typer.Option(True, "--docs/--no-docs", help="Update CLAUDE.md"),
+    update_docs: bool = typer.Option(True, "--docs/--no-docs", help="Update the agent instructions file"),
     json_output: bool = typer.Option(False, "--json", "-j", help="JSON output"),
 ) -> None:
     """Repair and rebuild the vault — full sync, fix broken links, promote notes, rebuild indexes."""
@@ -225,15 +225,27 @@ def repair(
     if update_docs:
         if not json_output:
             console.print("[bold]6/6 Updating agent docs...[/]")
-        from hyperresearch.core.agent_docs import inject_agent_docs
-        modified = inject_agent_docs(vault.root)
+        from hyperresearch.core.agent_docs import _resolve_executable, inject_agent_docs
+        modified = inject_agent_docs(vault.root, platform=vault.config.agent_platform)
         report["agent_docs"] = modified
+        if vault.config.agent_platform == "codex":
+            from hyperresearch.core.codex_bundle import refresh_codex_project_bundle
+
+            bundle_actions = refresh_codex_project_bundle(vault.root, hpr_path=_resolve_executable())
+            report["codex_bundle"] = bundle_actions
+        else:
+            bundle_actions = []
         if not json_output:
             if modified:
                 for m in modified:
                     console.print(f"  {m}")
             else:
                 console.print("  Already up to date")
+            if bundle_actions:
+                for action in bundle_actions:
+                    console.print(f"  {action}")
+            elif vault.config.agent_platform == "codex":
+                console.print("  Codex bundle already up to date")
     else:
         if not json_output:
             console.print("[dim]6/6 Skipping agent docs[/]")

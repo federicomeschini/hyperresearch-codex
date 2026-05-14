@@ -64,11 +64,18 @@ def test_agent_docs_created(tmp_path: Path):
 
 
 def test_init_only_creates_claude_md(tmp_path: Path):
-    """Vault.init writes CLAUDE.md ONLY — no AGENTS.md, GEMINI.md, or
-    .github/copilot-instructions.md. hyperresearch is Claude Code-only;
-    multi-platform doc generation was removed in v0.6."""
+    """Default Vault.init keeps the Claude compatibility path."""
     vault = Vault.init(tmp_path / "kb-claude-only")
     assert (vault.root / "CLAUDE.md").exists()
     assert not (vault.root / "AGENTS.md").exists()
     assert not (vault.root / "GEMINI.md").exists()
     assert not (vault.root / ".github" / "copilot-instructions.md").exists()
+
+
+def test_init_codex_creates_agents_md(tmp_path: Path):
+    vault = Vault.init(tmp_path / "kb-codex", agent_platform="codex")
+    assert (vault.root / "AGENTS.md").exists()
+    content = (vault.root / "AGENTS.md").read_text()
+    assert "Codex CLI" in content
+    assert "hyperresearch research" in content
+    assert not (vault.root / "CLAUDE.md").exists()
