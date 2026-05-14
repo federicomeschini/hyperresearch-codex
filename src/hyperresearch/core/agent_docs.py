@@ -124,17 +124,21 @@ Summaries must be specific - "Mamba achieves linear-time sequence modeling via s
 {end_marker}
 """
 
-def transform_claude_markdown_for_codex(content: str) -> str:
-    """Translate Claude-oriented instruction text into Codex-oriented text."""
+def transform_claude_markdown_for_codex(content: str, *, model_label: str = "gpt-5.4") -> str:
+    """Translate Claude-oriented instruction text into Codex-oriented text.
+
+    `model_label` lets Codex-rendered prompts describe the role-specific
+    model tier that should execute them.
+    """
     transformed = content
     replacements = [
         ("CLAUDE.md", "AGENTS.md"),
         (".claude/skills", ".agents/skills"),
         (".claude/agents", ".codex/agents"),
         ("Claude Code", "Codex CLI"),
-        ("Sonnet", "gpt-5.4"),
-        ("Opus", "gpt-5.4"),
-        ("Haiku", "gpt-5.4"),
+        ("Sonnet", model_label),
+        ("Opus", model_label),
+        ("Haiku", model_label),
         ("Skill tool", "skill-loading mechanism"),
         ("Task", "Agent"),
         ("Task tool", "Agent tool"),

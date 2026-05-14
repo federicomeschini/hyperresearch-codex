@@ -11,12 +11,17 @@ layout:
 The implementation is intentionally conservative: it preserves user-owned
 content in existing config files and only updates the Codex-specific sections
 hyperresearch needs.
+
+Role selection is tiered: `gpt-5.4-mini` handles high-throughput extraction
+and formatting, `gpt-5.4` handles mid-depth analysis and editing, and
+`gpt-5.5` handles the hardest adversarial and final-arbitration roles.
 """
 
 from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -45,27 +50,65 @@ from hyperresearch.core.hooks import (
     _render_scaffold_only_bullets,
 )
 
-_AGENT_MODEL_MAP = {
-    "sonnet": "gpt-5.4-mini",
-    "opus": "gpt-5.4",
-    "haiku": "gpt-5.4-mini",
+@dataclass(frozen=True)
+class _CodexModelPolicy:
+    model: str
+    reasoning_effort: str
+    rationale: str
+
+
+_CODEx_LIGHT_POLICY = _CodexModelPolicy(
+    model="gpt-5.4-mini",
+    reasoning_effort="low",
+    rationale="high-throughput extraction and formatting",
+)
+_CODEx_STANDARD_POLICY = _CodexModelPolicy(
+    model="gpt-5.4",
+    reasoning_effort="medium",
+    rationale="mid-depth reasoning and surgical editing",
+)
+_CODEx_FRONTIER_POLICY = _CodexModelPolicy(
+    model="gpt-5.5",
+    reasoning_effort="high",
+    rationale="frontier adversarial reasoning and final arbitration",
+)
+
+_CODEx_LIGHT_AGENT_NAMES = {
+    "hyperresearch-fetcher",
+    "hyperresearch-readability-recommender",
+}
+_CODEx_STANDARD_AGENT_NAMES = {
+    "hyperresearch-loci-analyst",
+    "hyperresearch-depth-investigator",
+    "hyperresearch-source-analyst",
+    "hyperresearch-patcher",
+    "hyperresearch-polish-auditor",
+    "hyperresearch-draft-orchestrator",
+}
+_CODEx_FRONTIER_AGENT_NAMES = {
+    "hyperresearch-corpus-critic",
+    "hyperresearch-dialectic-critic",
+    "hyperresearch-depth-critic",
+    "hyperresearch-width-critic",
+    "hyperresearch-instruction-critic",
+    "hyperresearch-synthesizer",
 }
 
-_CODEx_AGENT_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("hyperresearch-fetcher", RESEARCHER_AGENT, "gpt-5.4-mini"),
-    ("hyperresearch-loci-analyst", LOCI_ANALYST_AGENT, "gpt-5.4-mini"),
-    ("hyperresearch-depth-investigator", DEPTH_INVESTIGATOR_AGENT, "gpt-5.4-mini"),
-    ("hyperresearch-source-analyst", SOURCE_ANALYST_AGENT, "gpt-5.4-mini"),
-    ("hyperresearch-corpus-critic", CORPUS_CRITIC_AGENT, "gpt-5.4"),
-    ("hyperresearch-dialectic-critic", DIALECTIC_CRITIC_AGENT, "gpt-5.4"),
-    ("hyperresearch-depth-critic", DEPTH_CRITIC_AGENT, "gpt-5.4"),
-    ("hyperresearch-width-critic", WIDTH_CRITIC_AGENT, "gpt-5.4"),
-    ("hyperresearch-instruction-critic", INSTRUCTION_CRITIC_AGENT, "gpt-5.4"),
-    ("hyperresearch-patcher", PATCHER_AGENT, "gpt-5.4"),
-    ("hyperresearch-polish-auditor", POLISH_AUDITOR_AGENT, "gpt-5.4"),
-    ("hyperresearch-readability-recommender", READABILITY_REFORMATTER_AGENT, "gpt-5.4"),
-    ("hyperresearch-draft-orchestrator", DRAFT_ORCHESTRATOR_AGENT, "gpt-5.4"),
-    ("hyperresearch-synthesizer", SYNTHESIZER_AGENT, "gpt-5.4"),
+_CODEx_AGENT_SPECS: tuple[tuple[str, str], ...] = (
+    ("hyperresearch-fetcher", RESEARCHER_AGENT),
+    ("hyperresearch-loci-analyst", LOCI_ANALYST_AGENT),
+    ("hyperresearch-depth-investigator", DEPTH_INVESTIGATOR_AGENT),
+    ("hyperresearch-source-analyst", SOURCE_ANALYST_AGENT),
+    ("hyperresearch-corpus-critic", CORPUS_CRITIC_AGENT),
+    ("hyperresearch-dialectic-critic", DIALECTIC_CRITIC_AGENT),
+    ("hyperresearch-depth-critic", DEPTH_CRITIC_AGENT),
+    ("hyperresearch-width-critic", WIDTH_CRITIC_AGENT),
+    ("hyperresearch-instruction-critic", INSTRUCTION_CRITIC_AGENT),
+    ("hyperresearch-patcher", PATCHER_AGENT),
+    ("hyperresearch-polish-auditor", POLISH_AUDITOR_AGENT),
+    ("hyperresearch-readability-recommender", READABILITY_REFORMATTER_AGENT),
+    ("hyperresearch-draft-orchestrator", DRAFT_ORCHESTRATOR_AGENT),
+    ("hyperresearch-synthesizer", SYNTHESIZER_AGENT),
 )
 
 
@@ -93,14 +136,22 @@ def _write_text_if_changed(path: Path, content: str) -> bool:
     return True
 
 
-def _render_prompt(prompt: str, hpr_path: str) -> str:
+def _codex_model_policy(agent_name: str) -> _CodexModelPolicy:
+    if agent_name in _CODEx_FRONTIER_AGENT_NAMES:
+        return _CODEx_FRONTIER_POLICY
+    if agent_name in _CODEx_LIGHT_AGENT_NAMES:
+        return _CODEx_LIGHT_POLICY
+    return _CODEx_STANDARD_POLICY
+
+
+def _render_prompt(prompt: str, hpr_path: str, *, model_label: str) -> str:
     """Format the Claude prompt and translate it into Codex-oriented text."""
     rendered = prompt.replace("{hpr_path}", hpr_path.replace("\\", "/"))
     rendered = rendered.replace(
         "{scaffold_only_sections}",
         _render_scaffold_only_bullets(indent="- "),
     )
-    return transform_claude_markdown_for_codex(rendered)
+    return transform_claude_markdown_for_codex(rendered, model_label=model_label)
 
 
 def _split_prompt(prompt: str) -> tuple[dict[str, object], str]:
@@ -118,11 +169,6 @@ def _split_prompt(prompt: str) -> tuple[dict[str, object], str]:
     if not isinstance(meta, dict):
         raise ValueError("prompt frontmatter is not a mapping")
     return meta, body
-
-
-def _map_model(model: str, fallback: str) -> str:
-    normalized = model.strip().lower()
-    return _AGENT_MODEL_MAP.get(normalized, fallback)
 
 
 def _nickname_candidates(name: str) -> list[str]:
@@ -150,7 +196,7 @@ def _render_agent_toml(
     description: str,
     developer_instructions: str,
     model: str,
-    reasoning_effort: str = "high",
+    model_policy: _CodexModelPolicy,
     sandbox_mode: str = "workspace-write",
     nickname_candidates: Iterable[str] = (),
 ) -> str:
@@ -158,9 +204,10 @@ def _render_agent_toml(
     lines = [
         f"name = {_toml_string(name)}",
         f"description = {_toml_string(description)}",
+        f"# Model tier: {model_policy.rationale}",
         f"developer_instructions = {_toml_multiline_string(developer_instructions)}",
         f"model = {_toml_string(model)}",
-        f"model_reasoning_effort = {_toml_string(reasoning_effort)}",
+        f"model_reasoning_effort = {_toml_string(model_policy.reasoning_effort)}",
         f"sandbox_mode = {_toml_string(sandbox_mode)}",
     ]
 
@@ -177,9 +224,7 @@ def _render_agent_content(
     target_model: str,
 ) -> tuple[dict[str, object], str]:
     """Format and transform an agent prompt into Codex-ready content."""
-    rendered = _render_prompt(prompt, hpr_path)
-    if target_model == "gpt-5.4-mini":
-        rendered = rendered.replace("gpt-5.4", "gpt-5.4-mini")
+    rendered = _render_prompt(prompt, hpr_path, model_label=target_model)
     return _split_prompt(rendered)
 
 
@@ -238,7 +283,7 @@ def _install_codex_entry_skill(root: Path, hpr_path: str) -> str | None:
     if content is None:
         return None
 
-    content = transform_claude_markdown_for_codex(content)
+    content = transform_claude_markdown_for_codex(content, model_label="gpt-5.5")
     skill_root = root / ".agents" / "skills"
     skill_root.mkdir(parents=True, exist_ok=True)
     dest_path = skill_root / "hyperresearch" / "SKILL.md"
@@ -279,18 +324,19 @@ def _install_codex_agents(root: Path, hpr_path: str) -> list[str]:
     agents_dir.mkdir(parents=True, exist_ok=True)
 
     actions: list[str] = []
-    for name, prompt, model in _CODEx_AGENT_SPECS:
-        model_value = _map_model(model, model)
-        meta, body = _render_agent_content(prompt, hpr_path, model_value)
+    for name, prompt in _CODEx_AGENT_SPECS:
+        policy = _codex_model_policy(name)
+        meta, body = _render_agent_content(prompt, hpr_path, policy.model)
         rendered_name = str(meta.get("name", name))
         description = str(meta.get("description", "")).strip()
-        model_value = _map_model(str(meta.get("model", model_value)), model_value)
+        model_value = policy.model
         nickname_candidates = _nickname_candidates(rendered_name)
         toml = _render_agent_toml(
             name=rendered_name,
             description=description,
             developer_instructions=body,
             model=model_value,
+            model_policy=policy,
             nickname_candidates=nickname_candidates,
         )
         dest_path = agents_dir / f"{name}.toml"

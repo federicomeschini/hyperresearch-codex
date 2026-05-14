@@ -38,12 +38,27 @@ def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
 
     entry_text = entry_skill.read_text(encoding="utf-8")
     assert ".agents/skills" in entry_text
-    assert "Use the" in entry_text
+    assert "gpt-5.5" in entry_text
 
     fetcher_text = fetcher.read_text(encoding="utf-8")
     assert 'model = "gpt-5.4-mini"' in fetcher_text
+    assert 'model_reasoning_effort = "low"' in fetcher_text
     assert 'developer_instructions = """' in fetcher_text
     assert "C:/Tools/hyperresearch.exe" in fetcher_text
+
+    corpus_critic = root / ".codex" / "agents" / "hyperresearch-corpus-critic.toml"
+    patcher = root / ".codex" / "agents" / "hyperresearch-patcher.toml"
+    synthesizer = root / ".codex" / "agents" / "hyperresearch-synthesizer.toml"
+
+    assert corpus_critic.exists()
+    assert patcher.exists()
+    assert synthesizer.exists()
+    assert 'model = "gpt-5.5"' in corpus_critic.read_text(encoding="utf-8")
+    assert 'model_reasoning_effort = "high"' in corpus_critic.read_text(encoding="utf-8")
+    assert 'model = "gpt-5.4"' in patcher.read_text(encoding="utf-8")
+    assert 'model_reasoning_effort = "medium"' in patcher.read_text(encoding="utf-8")
+    assert 'model = "gpt-5.5"' in synthesizer.read_text(encoding="utf-8")
+    assert 'model_reasoning_effort = "high"' in synthesizer.read_text(encoding="utf-8")
 
     config_text = config.read_text(encoding="utf-8")
     assert 'model = "gpt-5.4-mini"' in config_text

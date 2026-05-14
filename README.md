@@ -160,7 +160,7 @@ After the academic sweep, run web searches for context, news, non-academic angle
 
 - It doesn't replace your judgment on which sources matter. The agent picks, you steer.
 - It can't fetch what's behind a paywall you haven't logged into.
-- It runs on the host platform's model roster via the subagent bundle: Claude Code uses Opus + Sonnet + Haiku, while Codex uses the mapped GPT-5.4 family. Costs scale with tier and corpus size.
+- It runs on the host platform's model roster via the subagent bundle: Codex uses `gpt-5.4-mini` for extraction and formatting, `gpt-5.4` for mid-depth analysis and editing, and `gpt-5.5` for the hardest adversarial or final-arbitration roles. Costs scale with tier and corpus size.
 - The lint gate catches **structural** failures (missing scaffold, broken provenance, unresolved CRITICALs). It cannot guarantee factual accuracy, that's still your call.
 
 ---
