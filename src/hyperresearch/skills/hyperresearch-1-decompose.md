@@ -2,8 +2,8 @@
 name: hyperresearch-1-decompose
 description: >
   Step 1 of the hyperresearch V8 pipeline. Decomposes the canonical research
-  query into atomic items, classifies pipeline_tier and response_format,
-  and produces the coverage matrix that downstream steps depend on. The
+  query into atomic items, records the user-selected pipeline_tier, classifies
+  response_format, and produces the coverage matrix that downstream steps depend on. The
   required_section_headings field this step produces is the single
   highest-leverage input for instruction-following scores. Invoked via
   Skill tool from the entry skill (hyperresearch).
@@ -11,7 +11,7 @@ description: >
 
 # Step 1 — Prompt decomposition
 
-**Tier gate:** Runs for ALL tiers. This step also classifies the tier itself.
+**Tier gate:** Runs for ALL tiers. This step copies the user-selected tier from the scaffold. It does not infer the tier.
 
 **Goal:** before any research happens, decompose the user's prompt into its atomic items. This artifact is read by the instruction-critic in step 11 and by the draft sub-orchestrators in step 10 to make sure the pipeline doesn't drift from what was actually asked.
 
@@ -98,16 +98,16 @@ Read both before starting. The vault_tag is in the scaffold's "Run config" secti
 
 6. **Do NOT include wrapper-contract requirements here** — those live in `research/wrapper_contract.json` separately. The decomposition is ONLY about what the user's actual prompt named.
 
-7. **Classify `pipeline_tier` and `response_format`.**
+7. **Record `pipeline_tier` and classify `response_format`.**
 
-   **`pipeline_tier`** — how much pipeline to run:
+   **`pipeline_tier`** — copy the user-selected tier from `research/scaffold.md` Run config.
 
-   | Tier | When to use | Signal words / patterns |
-   |------|-------------|------------------------|
-   | `"light"` | Query has a clear, bounded answer. Factual lookup, definition, simple explanation, short how-to, list/catalog, quick comparison, landscape overview, multi-entity survey. | "What is...", "How do I...", "List the...", "Define...", "Overview of...", "Compare X and Y", short-to-moderate prompts, single clear question or 2–5 sub-questions |
-   | `"full"` | Deep analysis, synthesis of conflicting evidence, defended thesis, literature review, forecast with evidence chains. | "Analyze the impact of...", "Evaluate whether...", multi-paragraph prompts, explicit request for depth/rigor, research-grade questions, contested topics |
+   | Tier | Meaning |
+   |------|---------|
+   | `"light"` | User chose the bounded route: 1 → 2 → 10 → 15 → 16. |
+   | `"full"` | User chose the complete route: all 16 steps with adversarial review. |
 
-   **Default is `"full"`.** When uncertain, tier up. Running the full pipeline on a simple query wastes money; running the light pipeline on a complex query produces a bad report.
+   If the scaffold does not contain `pipeline_tier: light` or `pipeline_tier: full`, stop and ask the user to choose `light` or `full`. Do not infer, default, or silently upgrade the tier.
 
    **`response_format`** — how the output is shaped:
 
@@ -152,16 +152,16 @@ Read both before starting. The vault_tag is in the scaffold's "Run config" secti
 
    **If any row has `Gap? = YES`:** go back and fix the decomposition. Add the missing atomic items, broaden the narrowed scope_conditions, or add missing entities. Then re-run the matrix until every row passes. Do NOT proceed with known gaps — they cascade into missing searches, missing sources, and missing draft sections.
 
-9. **Update the scaffold.** Append a "Tier rationale" subsection to `research/scaffold.md` with a 2-3 sentence justification for the tier classification.
+9. **Update the scaffold.** Append a "Tier selection" subsection to `research/scaffold.md` that records the chosen tier and, if the user gave one, their reason. Do not write an inferred rationale.
 
 ---
 
 ## Exit criterion
 
 - `research/prompt-decomposition.json` exists, is valid JSON, every atomic item traces to the research_query
-- `pipeline_tier` + `response_format` + `citation_style` are all set
+- `pipeline_tier` is the user-selected tier, and `response_format` + `citation_style` are set
 - `research/temp/coverage-matrix.md` exists with **zero `Gap? = YES` rows**
-- `research/scaffold.md` includes a Tier rationale subsection
+- `research/scaffold.md` includes a Tier selection subsection
 
 ---
 

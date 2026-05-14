@@ -58,36 +58,32 @@ def test_config_loaded(tmp_vault: Vault):
 
 def test_agent_docs_created(tmp_path: Path):
     vault = Vault.init(tmp_path / "kb")
-    assert (vault.root / "CLAUDE.md").exists()
-    content = (vault.root / "CLAUDE.md").read_text()
+    assert (vault.root / "AGENTS.md").exists()
+    content = (vault.root / "AGENTS.md").read_text()
     assert "hyperresearch" in content
 
 
-def test_init_only_creates_claude_md(tmp_path: Path):
-    """Default Vault.init keeps the Claude compatibility path."""
-    vault = Vault.init(tmp_path / "kb-claude-only")
-    assert (vault.root / "CLAUDE.md").exists()
-    assert not (vault.root / "AGENTS.md").exists()
-    assert not (vault.root / "GEMINI.md").exists()
-    assert not (vault.root / ".github" / "copilot-instructions.md").exists()
+def test_init_only_creates_agents_md(tmp_path: Path):
+    """Vault.init creates the Codex instructions file."""
+    vault = Vault.init(tmp_path / "kb-codex-only")
+    assert (vault.root / "AGENTS.md").exists()
 
 
 def test_init_codex_creates_agents_md(tmp_path: Path):
-    vault = Vault.init(tmp_path / "kb-codex", agent_platform="codex")
+    vault = Vault.init(tmp_path / "kb-codex")
     assert (vault.root / "AGENTS.md").exists()
     content = (vault.root / "AGENTS.md").read_text()
     assert "Codex CLI" in content
     assert "hyperresearch research" in content
-    assert not (vault.root / "CLAUDE.md").exists()
 
 
 def test_codex_agent_docs_are_idempotent(tmp_path: Path):
-    vault = Vault.init(tmp_path / "kb-codex-docs", agent_platform="codex")
+    vault = Vault.init(tmp_path / "kb-codex-docs")
 
     from hyperresearch.core.agent_docs import inject_agent_docs
 
-    inject_agent_docs(vault.root, platform="codex")
-    inject_agent_docs(vault.root, platform="codex")
+    inject_agent_docs(vault.root)
+    inject_agent_docs(vault.root)
 
     content = (vault.root / "AGENTS.md").read_text()
     assert content.count("### Effort routing") == 1

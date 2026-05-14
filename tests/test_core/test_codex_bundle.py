@@ -17,7 +17,7 @@ from hyperresearch.core.vault import Vault
 
 def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
     root = tmp_path / "kb"
-    Vault.init(root, agent_platform="codex")
+    Vault.init(root)
 
     codex_dir = root / ".codex"
     codex_dir.mkdir(exist_ok=True)
@@ -43,7 +43,6 @@ def test_install_codex_project_bundle_creates_codex_layout(tmp_path: Path):
 
     entry_text = entry_skill.read_text(encoding="utf-8")
     assert ".agents/skills" in entry_text
-    assert ".claude/skills" not in entry_text
     assert "gpt-5.5" in entry_text
     assert "Load and follow the hyperresearch-1-decompose skill." in entry_text
     assert "Use the `hyperresearch-" not in entry_text

@@ -6,7 +6,7 @@ import sys
 
 
 def mcp() -> None:
-    """Start the MCP server (stdio transport) for Claude Desktop, Cursor, etc.
+    """Start the MCP server (stdio transport) for read-only vault access.
 
     Requires: pip install hyperresearch[mcp]
     """

@@ -1,11 +1,11 @@
 # AGENTS.md
 
-This repository is being adapted for Codex CLI first, while keeping Claude Code compatibility in the library.
+This repository is Codex CLI first.
 
 Use these defaults when working here:
 
-- Prefer `hyperresearch install --platform codex` when testing the Codex path.
-- Use `hyperresearch install --platform claude` only when you need the legacy Claude Code hook flow.
+- Use `hyperresearch install` when testing the Codex install path.
+- Do not add or document alternate platform install flows.
 - `hyperresearch mcp` is the read-only MCP server entry point.
-- Keep changes narrow and avoid rewriting unrelated Claude-specific code unless the task requires it.
-- Preserve existing vault behavior unless the requested change is explicitly about platform adaptation.
+- Preserve existing vault behavior unless the requested change is explicitly about Codex adaptation.
+- The research pipeline tier is always a user choice: `light` or `full`. Do not infer it from the query.

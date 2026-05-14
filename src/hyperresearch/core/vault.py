@@ -99,7 +99,6 @@ class Vault:
         root: Path,
         name: str = "Research Base",
         research_dir: str = "research",
-        agent_platform: str = "claude",
     ) -> Vault:
         """Initialize a new vault at the given path."""
         root = root.resolve()
@@ -120,7 +119,7 @@ class Vault:
         (kb_dir / "temp").mkdir(exist_ok=True)
 
         # Write config
-        config = VaultConfig(name=name, research_dir=research_dir, agent_platform=agent_platform)
+        config = VaultConfig(name=name, research_dir=research_dir)
         config.save(hyperresearch_dir / CONFIG_FILE)
 
         # Initialize database
@@ -143,7 +142,7 @@ class Vault:
 
         # Inject the agent instructions file at vault root.
         from hyperresearch.core.agent_docs import inject_agent_docs
-        inject_agent_docs(root, platform=agent_platform)
+        inject_agent_docs(root)
 
         return vault
 

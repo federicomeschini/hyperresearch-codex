@@ -226,15 +226,12 @@ def repair(
         if not json_output:
             console.print("[bold]6/6 Updating agent docs...[/]")
         from hyperresearch.core.agent_docs import _resolve_executable, inject_agent_docs
-        modified = inject_agent_docs(vault.root, platform=vault.config.agent_platform)
+        modified = inject_agent_docs(vault.root)
         report["agent_docs"] = modified
-        if vault.config.agent_platform == "codex":
-            from hyperresearch.core.codex_bundle import refresh_codex_project_bundle
+        from hyperresearch.core.codex_bundle import refresh_codex_project_bundle
 
-            bundle_actions = refresh_codex_project_bundle(vault.root, hpr_path=_resolve_executable())
-            report["codex_bundle"] = bundle_actions
-        else:
-            bundle_actions = []
+        bundle_actions = refresh_codex_project_bundle(vault.root, hpr_path=_resolve_executable())
+        report["codex_bundle"] = bundle_actions
         if not json_output:
             if modified:
                 for m in modified:
@@ -244,7 +241,7 @@ def repair(
             if bundle_actions:
                 for action in bundle_actions:
                     console.print(f"  {action}")
-            elif vault.config.agent_platform == "codex":
+            else:
                 console.print("  Codex bundle already up to date")
     else:
         if not json_output:

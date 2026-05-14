@@ -1,7 +1,6 @@
 """Codex bundle installer for hyperresearch skills, agent roles, and config.
 
-This module mirrors the Claude installer's roster, but writes the Codex-native
-layout:
+This module writes the Codex-native layout:
 
 - `AGENTS.md` at the vault root
 - project/home skills under `.agents/skills/<skill>/SKILL.md`
@@ -31,7 +30,7 @@ from typing import Iterable
 
 import yaml
 
-from hyperresearch.core.agent_docs import transform_claude_markdown_for_codex
+from hyperresearch.core.agent_docs import transform_agent_markdown_for_codex
 from hyperresearch.core.hooks import (
     CORPUS_CRITIC_AGENT,
     DEPTH_CRITIC_AGENT,
@@ -175,13 +174,13 @@ def _codex_model_policy(agent_name: str) -> _CodexModelPolicy:
 
 
 def _render_prompt(prompt: str, hpr_path: str, *, model_label: str) -> str:
-    """Format the Claude prompt and translate it into Codex-oriented text."""
+    """Format the shared prompt and translate it into Codex-oriented text."""
     rendered = prompt.replace("{hpr_path}", hpr_path.replace("\\", "/"))
     rendered = rendered.replace(
         "{scaffold_only_sections}",
         _render_scaffold_only_bullets(indent="- "),
     )
-    return transform_claude_markdown_for_codex(rendered, model_label=model_label)
+    return transform_agent_markdown_for_codex(rendered, model_label=model_label)
 
 
 def _split_prompt(prompt: str) -> tuple[dict[str, object], str]:
@@ -313,7 +312,7 @@ def _install_codex_entry_skill(root: Path, hpr_path: str) -> str | None:
     if content is None:
         return None
 
-    content = transform_claude_markdown_for_codex(content, model_label="gpt-5.5")
+    content = transform_agent_markdown_for_codex(content, model_label="gpt-5.5")
     skill_root = root / ".agents" / "skills"
     skill_root.mkdir(parents=True, exist_ok=True)
     dest_path = skill_root / "hyperresearch" / "SKILL.md"
@@ -353,7 +352,7 @@ def _install_codex_step_skills(root: Path, hpr_path: str) -> str | None:
         content = _read_skill_source(source_name)
         if content is None:
             continue
-        content = transform_claude_markdown_for_codex(content)
+        content = transform_agent_markdown_for_codex(content)
         dest_path = skill_root / skill_name / "SKILL.md"
         if _write_text_if_changed(dest_path, content):
             installed.append(skill_name)

@@ -1,8 +1,6 @@
 """Agent documentation integration for hyperresearch vaults.
 
-This module writes the agent-facing instructions file at the vault root.
-The target file is platform-aware: Claude uses CLAUDE.md, Codex uses
-AGENTS.md, and other agent platforms can be added later.
+This module writes Codex-facing AGENTS.md instructions at the vault root.
 """
 
 from __future__ import annotations
@@ -10,15 +8,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-AGENT_DOC_FILENAMES = {
-    "claude": "CLAUDE.md",
-    "codex": "AGENTS.md",
-}
-
-AGENT_PLATFORM_LABELS = {
-    "claude": "Claude Code",
-    "codex": "Codex CLI",
-}
+AGENT_DOC_FILENAME = "AGENTS.md"
+AGENT_RUNTIME_LABEL = "Codex CLI"
 
 HYPERRESEARCH_SECTION_MARKER = "<!-- hyperresearch:start -->"
 HYPERRESEARCH_SECTION_END = "<!-- hyperresearch:end -->"
@@ -28,13 +19,13 @@ CODEX_EFFORT_ROUTING_SECTION = """
 When a task is still ambiguous, use `hyperresearch-effort-router` first to choose the cheapest safe reasoning effort before spawning a heavier agent.
 """
 
-CLAUDE_BLURB_TEMPLATE = """
+AGENT_BLURB_TEMPLATE = """
 {marker}
 ## Research Base (hyperresearch) - Today is {today}
 
 **CLI path: `{hpr}`** - use this exact path for every hyperresearch command. It may not be on your system PATH.
 
-**Agent platform: {platform_label}.**
+**Agent runtime: {runtime_label}.**
 
 **Paths in this document are relative to your current working directory**, not to the CLI binary's location. Use `research/notes/final_report_<vault_tag>.md` (not a prefix with the binary path) when you save files.
 
@@ -42,11 +33,11 @@ This project uses hyperresearch as an agent-driven research knowledge base. The 
 
 ### How to do research
 
-**Run a research session with `/hyperresearch <query>`.** This invokes the V8 16-step pipeline. The entry skill at `.claude/skills/hyperresearch/SKILL.md` is a thin router. The 16 step procedures live in their own skills (`hyperresearch-1-decompose` through `hyperresearch-16-readability-audit`) and are loaded fresh into context via the `Skill` tool when each step runs. This solves context-compaction problems in long runs: each step's procedure lands in context only when needed. Read the entry skill before you start a research session; it explains the chain mechanics.
+**Run a research session with `/hyperresearch <query>`.** This invokes the V8 16-step pipeline. The entry skill at `.agents/skills/hyperresearch/SKILL.md` is a thin router. The 16 step procedures live in their own skills (`hyperresearch-1-decompose` through `hyperresearch-16-readability-audit`) and are loaded fresh into context via Codex's skill-loading mechanism when each step runs. This solves context-compaction problems in long runs: each step's procedure lands in context only when needed. Read the entry skill before you start a research session; it explains the chain mechanics.
 
 For basic CLI-driven source gathering outside the agent pipeline, use `hyperresearch research "<query>"`.
 
-Step 1 classifies the query into one of two tiers (`light` or `full`) and the rest of the pipeline scales accordingly - short bounded queries skip the depth investigations, critics, and patcher (~30-40 min); argumentative deep-research queries run all 16 steps with adversarial review (~1.5-2.5 hours).
+The user must choose one of two tiers (`light` or `full`) before the pipeline starts. `light` skips the depth investigations, critics, and patcher (~30-40 min). `full` runs all 16 steps with adversarial review (~1.5-2.5 hours). Do not infer or override the tier silently.
 
 **Do NOT use WebFetch for source pages** - use `{hpr} fetch` instead. The skill files explain when to fetch vs. search.
 
@@ -133,18 +124,14 @@ Summaries must be specific - "Mamba achieves linear-time sequence modeling via s
 {end_marker}
 """
 
-def transform_claude_markdown_for_codex(content: str, *, model_label: str = "gpt-5.4") -> str:
-    """Translate Claude-oriented instruction text into Codex-oriented text.
+def transform_agent_markdown_for_codex(content: str, *, model_label: str = "gpt-5.4") -> str:
+    """Translate legacy agent instruction text into Codex-oriented text.
 
     `model_label` lets Codex-rendered prompts describe the role-specific
     model tier that should execute them.
     """
     transformed = content
     replacements = [
-        ("CLAUDE.md", "AGENTS.md"),
-        (".claude/skills", ".agents/skills"),
-        (".claude/agents", ".codex/agents"),
-        ("Claude Code", "Codex CLI"),
         ("Sonnet", model_label),
         ("Opus", model_label),
         ("Haiku", model_label),
@@ -163,19 +150,12 @@ def transform_claude_markdown_for_codex(content: str, *, model_label: str = "gpt
     return transformed
 
 
-CODEX_BLURB_TEMPLATE = transform_claude_markdown_for_codex(
-    CLAUDE_BLURB_TEMPLATE.replace(
+CODEX_BLURB_TEMPLATE = transform_agent_markdown_for_codex(
+    AGENT_BLURB_TEMPLATE.replace(
         "{end_marker}",
         CODEX_EFFORT_ROUTING_SECTION.rstrip() + "\n{end_marker}",
     )
 )
-
-
-def _normalize_platform(platform: str) -> str:
-    normalized = platform.strip().lower()
-    if normalized not in AGENT_DOC_FILENAMES:
-        raise ValueError(f"Unsupported agent platform: {platform}")
-    return normalized
 
 
 def _resolve_executable() -> str:
@@ -203,30 +183,25 @@ def _resolve_executable() -> str:
     return "hyperresearch"
 
 
-def _build_blurb(platform: str, hpr: str) -> str:
+def _build_blurb(hpr: str) -> str:
     from datetime import date
 
-    normalized = _normalize_platform(platform)
-    template = CLAUDE_BLURB_TEMPLATE if normalized == "claude" else CODEX_BLURB_TEMPLATE
-    blurb = template.format(
+    return CODEX_BLURB_TEMPLATE.format(
         marker=HYPERRESEARCH_SECTION_MARKER,
         end_marker=HYPERRESEARCH_SECTION_END,
         hpr=hpr,
-        platform_label=AGENT_PLATFORM_LABELS[normalized],
+        runtime_label=AGENT_RUNTIME_LABEL,
         today=date.today().isoformat(),
     )
-    return blurb
 
 
-def inject_agent_docs(vault_root: Path, platform: str = "claude") -> list[str]:
-    """Inject hyperresearch docs into the vault root for the target platform."""
+def inject_agent_docs(vault_root: Path) -> list[str]:
+    """Inject hyperresearch docs into AGENTS.md at the vault root."""
     hpr_path = _resolve_executable().replace("\\", "/")
-    normalized = _normalize_platform(platform)
-    doc_filename = AGENT_DOC_FILENAMES[normalized]
-    blurb = _build_blurb(normalized, hpr_path)
+    blurb = _build_blurb(hpr_path)
 
     modified: list[str] = []
-    result = _inject_into_file(vault_root / doc_filename, blurb, doc_filename)
+    result = _inject_into_file(vault_root / AGENT_DOC_FILENAME, blurb, AGENT_DOC_FILENAME)
     if result:
         modified.append(result)
     return modified

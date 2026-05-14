@@ -10,7 +10,6 @@ from pathlib import Path
 @dataclass
 class VaultConfig:
     name: str = "Research Base"
-    agent_platform: str = "claude"
     default_status: str = "draft"
     research_dir: str = "research"
 
@@ -29,7 +28,7 @@ class VaultConfig:
         default_factory=lambda: [
             ".hyperresearch/*", ".agents/*", ".codex/*", "exports/*", ".git/*", ".venv/*",
             "node_modules/*", "templates/*",
-            "CLAUDE.md", "AGENTS.md", "agents.md", "GEMINI.md", "README.md", "CHANGELOG.md",
+            "AGENTS.md", "README.md", "CHANGELOG.md",
         ]
     )
 
@@ -59,7 +58,6 @@ class VaultConfig:
 
         return cls(
             name=vault.get("name", cls.name),
-            agent_platform=vault.get("agent_platform", cls.agent_platform),
             default_status=vault.get("default_status", cls.default_status),
             research_dir=vault.get("research_dir", cls.research_dir),
             search_title_weight=search.get("title_weight", cls.search_title_weight),
@@ -87,7 +85,6 @@ class VaultConfig:
         lines = [
             "[vault]",
             f'name = "{self.name}"',
-            f'agent_platform = "{self.agent_platform}"',
             f'default_status = "{self.default_status}"',
             f'research_dir = "{self.research_dir}"',
             "",

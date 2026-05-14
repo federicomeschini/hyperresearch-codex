@@ -17,23 +17,18 @@ def init(
     path: str = typer.Argument(".", help="Path to initialize vault in"),
     name: str = typer.Option("Research Base", "--name", "-n", help="Vault name"),
     research_dir: str = typer.Option("research", "--dir", "-d", help="Research directory name"),
-    platform: str = typer.Option("codex", "--platform", help="Target agent platform: codex or claude"),
     json_output: bool = typer.Option(False, "--json", "-j", help="JSON output"),
 ) -> None:
     """Initialize a new hyperresearch vault."""
     from hyperresearch.core.vault import Vault, VaultError
-
-    if platform not in {"claude", "codex"}:
-        raise typer.BadParameter("platform must be 'claude' or 'codex'")
 
     try:
         vault = Vault.init(
             Path(path).resolve(),
             name=name,
             research_dir=research_dir,
-            agent_platform=platform,
         )
-        data = {"vault_path": str(vault.root), "name": name, "platform": platform}
+        data = {"vault_path": str(vault.root), "name": name}
         if json_output:
             output(success(data), json_mode=True)
         else:

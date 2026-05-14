@@ -1,9 +1,9 @@
 ---
 name: hyperresearch
 description: >
-  Deep research via the HYPERRESEARCH V8 architecture — a tier-adaptive 16-step
-  pipeline (light / full) that scales from a ~30-minute light-tier answer to
-  a 1.5–2.5 hour adversarially-audited report. This entry skill is a ROUTER.
+  Deep research via the HYPERRESEARCH V8 architecture — a user-selected
+  light/full 16-step pipeline that scales from a ~30-minute light-tier answer
+  to a 1.5–2.5 hour adversarially-audited report. This entry skill is a ROUTER.
   It does not contain step procedures — it tells you which Skill to invoke
   for each step, in order. Each step's instructions live in its own skill
   file (`hyperresearch-1-decompose` through `hyperresearch-16-readability-audit`)
@@ -38,7 +38,7 @@ When you invoke a Skill, that skill's full procedure is loaded into your context
 
 | # | Skill name | What it does | Tiers |
 |---|---|---|---|
-| 1 | `hyperresearch-1-decompose` | Canonical query → scaffold + decomposition + coverage matrix + tier classification | all |
+| 1 | `hyperresearch-1-decompose` | Canonical query → scaffold + decomposition + coverage matrix + selected tier recorded | all |
 | 2 | `hyperresearch-2-width-sweep` | Multi-perspective search plan + parallel fetcher waves | all |
 | 3 | `hyperresearch-3-contradiction-graph` | Pair contradictions across the corpus into ranked fight clusters | full |
 | 4 | `hyperresearch-4-loci-analysis` | 2 loci-analysts → scored loci.json with source budgets | full |
@@ -59,14 +59,14 @@ When you invoke a Skill, that skill's full procedure is loaded into your context
 
 ## Tier routing
 
-Step 1 classifies the query into a `pipeline_tier` (`light` / `full`). The tier is written to `research/prompt-decomposition.json`. After step 1, **read that file** to learn the tier, then sequence steps according to:
+The user chooses the `pipeline_tier` (`light` / `full`) before step 1. Do not infer the tier from the query. If the prompt explicitly contains `--tier light`, `--tier full`, `tier: light`, `tier: full`, `[light]`, or `[full]`, use that. Otherwise stop and ask the user to choose before the pipeline starts. The selected tier is written to `research/scaffold.md` and copied into `research/prompt-decomposition.json`. After step 1, **read that file** to confirm the tier, then sequence steps according to:
 
 | Tier | Steps that run | Typical cost | Typical time |
 |------|---|---|---|
 | `light` | 1 → 2 → 10 (single draft) → 15 → 16 | ~$5–15 | ~30–40 min |
 | `full` | 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 | ~$60–120 | ~1.5–2.5 hours |
 
-**RESPECT THE TIER GATE.** When step 1 classifies a query as `light`, do NOT run the skipped steps "just to be thorough." The tier classification is a product decision: simple queries should produce fast, right-sized answers. Trust the classification. If you're uncertain, tier up — but never silently upgrade every query to `full`.
+**RESPECT THE TIER GATE.** When the user chose `light`, do NOT run the skipped steps "just to be thorough." When the user chose `full`, do not drop steps for budget. The tier is a user contract, not an orchestrator classification. If the user did not choose a tier, ask.
 
 ---
 
@@ -76,7 +76,7 @@ Before you invoke any step skill, do this:
 
 0. **Auto-init if missing.** Two checks for the first-run-after-global-install case:
    - **Vault check.** If `.hyperresearch/` doesn't exist in the working directory, run `hyperresearch init . --json`. Creates the SQLite vault and `research/` directory.
-   - **Step-skills check.** If `.claude/skills/hyperresearch-1-decompose/SKILL.md` doesn't exist relative to the working directory, run `hyperresearch install --steps-only . --json`. Installs the 16 step skill files needed by `Skill(skill: "hyperresearch-N-...")` calls in later steps.
+   - **Step-skills check.** If `.agents/skills/hyperresearch-1-decompose/SKILL.md` doesn't exist relative to the working directory, run `hyperresearch install --steps-only . --json`. Installs the 16 step skill files needed by `Skill(skill: "hyperresearch-N-...")` calls in later steps.
 
    If either command fails because the binary isn't on PATH, tell the user to run `pip install hyperresearch` first. If both files already exist, both commands no-op cheaply — safe to run unconditionally.
 
@@ -106,23 +106,28 @@ Before you invoke any step skill, do this:
    - **compare**: proportionate per-entity depth + a committed recommendation
    - **forecast**: predictive claims grounded in past + present, explicit time horizon
 
-5. **Write the scaffold.** Write `research/scaffold.md` (your private planning document — it MUST NOT appear anywhere in the final report). Include in scaffold:
+5. **Resolve pipeline tier.** The user must choose `light` or `full`.
+   - If the prompt or wrapper explicitly contains `--tier light`, `--tier full`, `tier: light`, `tier: full`, `[light]`, or `[full]`, use that exact tier.
+   - Otherwise ask exactly: `Choose pipeline tier: light (~30-40 min) or full (~1.5-2.5h)?`
+   - Record the choice as `pipeline_tier: <light|full>` in the scaffold Run config. Do not infer or override it.
+
+6. **Write the scaffold.** Write `research/scaffold.md` (your private planning document — it MUST NOT appear anywhere in the final report). Include in scaffold:
    - User Prompt (VERBATIM — gospel)
-   - Run config (vault_tag, query_file_path, modality, wrapper requirements)
+   - Run config (vault_tag, query_file_path, modality, pipeline_tier, wrapper requirements)
    - Modality classification rationale
-   - Tier rationale (filled in after step 1)
+   - Tier selection (user-chosen light/full, plus any user-provided reason)
    - Wrapper requirements (save path, citation format, terminal sections)
 
-6. **Seed the TodoWrite list.** Create todos for all 16 step skill invocations using the integer step numbers, e.g.:
+7. **Seed the TodoWrite list.** Create todos for all 16 step skill invocations using the integer step numbers, e.g.:
    - `Step 1 — Skill: hyperresearch-1-decompose`
    - `Step 2 — Skill: hyperresearch-2-width-sweep`
    - ... (through Step 16)
 
    The todo list survives context compaction; it's your durable memory of where you are in the chain.
 
-7. **Invoke step 1:** `Skill(skill: "hyperresearch-1-decompose")`.
+8. **Invoke step 1:** `Skill(skill: "hyperresearch-1-decompose")`.
 
-After step 1 returns, read `research/prompt-decomposition.json` to learn the tier, then continue invoking step skills per the tier routing table above. After each step's exit criterion is met, mark its todo complete and move to the next.
+After step 1 returns, read `research/prompt-decomposition.json` to confirm it preserved the selected tier, then continue invoking step skills per the tier routing table above. After each step's exit criterion is met, mark its todo complete and move to the next.
 
 ---
 
@@ -134,7 +139,7 @@ After step 1 returns, read `research/prompt-decomposition.json` to learn the tie
 
 3. **ARGUE, DON'T JUST REPORT** (full force for `argumentative` response_format; relaxed for `structured` and `short`). The pipeline is engineered to push the final report toward argumentative density. Loci must include at least one dialectical locus. Depth investigators must commit to a position. Step 6 forces cross-locus reconciliation. Step 11's synthesizer requires every body section that touches a tension to engage it explicitly.
 
-4. **RESPECT THE TIER GATE.** See tier routing table. Don't add steps "for thoroughness." Don't drop steps "for budget." The tier is a binding contract.
+4. **RESPECT THE TIER GATE.** See tier routing table. Don't add steps "for thoroughness." Don't drop steps "for budget." The user-selected tier is a binding contract.
 
 ---
 

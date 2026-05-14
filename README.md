@@ -1,24 +1,19 @@
-# hyperresearch
+# hyperresearch-codex
 
 Codex-first research harness with a persistent vault, a 16-step research workflow, Codex-native skills/subagents, and an automatic reasoning-effort preflight for direct Codex tasks.
 
-This fork adapts the original hyperresearch idea to Codex CLI first, while keeping Claude Code compatibility in the library for the legacy hook flow.
+This repository is the independent Codex transposition of hyperresearch. The user-facing installer writes Codex assets only: `AGENTS.md`, `.agents/skills/`, `.codex/agents/`, and `.codex/config.toml`.
 
-## What this repo does
+## What This Repo Does
 
-- Creates a vault for research notes, sources, and indexes.
-- Runs the research workflow as a sequence of small agent steps.
-- Installs the complete hyperresearch workflow as Codex-native skills and subagents under `.agents/` and `.codex/`.
+- Creates a local vault for research notes, fetched sources, indexes, and final reports.
+- Installs the complete hyperresearch workflow as Codex-native skills and subagents.
+- Runs the research workflow as small step skills loaded fresh by Codex.
+- Keeps the vault rebuildable from markdown through `sync`, `repair`, and `lint`.
+- Provides a read-only MCP server for vault search and note access.
 - Routes direct Codex tasks through a cheap preflight agent before the main run.
-- Keeps the vault rebuildable from markdown.
 
-## Codex parity goal
-
-The Codex branch is a full transposition of the Claude Code workflow, not a smaller rewrite. The same research pipeline, step skills, vault commands, source handling, lint/repair flow, and final-report conventions are available through the Codex path. The Codex path adds platform-native extras on top: custom subagent TOML, `.agents/skills` installation, `AGENTS.md` injection, and direct-task effort routing.
-
-Claude Code compatibility remains in the library so existing vaults can still run the legacy hook flow with `--platform claude`.
-
-## Research workflow
+## Research Workflow
 
 | Step | Name | Output | Tier |
 |---|---|---|---|
@@ -39,144 +34,115 @@ Claude Code compatibility remains in the library so existing vaults can still ru
 | 15 | Polish | Clean-up and consistency pass | both |
 | 16 | Readability audit | Readability recommendations | both |
 
-The workflow stays tier-aware:
+Tier is always a user choice:
 
-- `light` trims the deepest review steps
-- `full` runs the complete pipeline
+- `light` runs the bounded path: 1 -> 2 -> 10 -> 15 -> 16.
+- `full` runs all 16 steps with adversarial review and patching.
+
+The pipeline should not infer the tier from the query. Pass it explicitly in the prompt, for example `--tier light` or `tier: full`, or choose when Codex asks.
 
 ## Install
 
 ```bash
 pip install hyperresearch
-hyperresearch install --platform codex
+hyperresearch install
 ```
 
-Use the Codex path for normal work:
+Global install is available when you want `/hyperresearch` available in every Codex session:
 
 ```bash
-hyperresearch research "your question"
+hyperresearch install --global
 ```
 
-Use the Codex task wrapper when you want automatic reasoning-effort routing:
+Install only the per-project step skills:
 
 ```bash
-hyperresearch codex run "review this module for race conditions"
+hyperresearch install --steps-only .
 ```
 
-Use the legacy Claude Code path only if you need the old hook flow:
+`hyperresearch install` creates or refreshes:
 
-```bash
-hyperresearch install --platform claude
-```
-
-Global install is available too. Codex remains the default platform:
-
-```bash
-hyperresearch install --global --platform codex
-```
-
-## Codex path
-
-`hyperresearch install --platform codex` installs:
-
-- `AGENTS.md` at the vault root
+- `AGENTS.md`
 - `.agents/skills/<skill>/SKILL.md`
 - `.codex/agents/*.toml`
 - `.codex/config.toml`
 
-The Codex install mirrors the Claude Code roster and adds one extra router agent. The router only recommends `reasoning.effort` for direct tasks so the main Codex run does not spend more compute than needed.
+## Typical Workflow
 
-The launcher command is:
+1. Run `hyperresearch install` in the project or vault root.
+2. Start a Codex session in that directory.
+3. Run `/hyperresearch <query> --tier light` for a faster bounded report, or `/hyperresearch <query> --tier full` for the complete pipeline.
+4. Let Codex fetch, store, search, and synthesize sources through the vault.
+5. Read the final report at `research/notes/final_report_<vault_tag>.md`.
+6. Run `hyperresearch lint` and `hyperresearch repair` when you want to check or refresh vault state.
 
-```bash
-hyperresearch codex run "<task>"
-```
+## Vault Access
 
-That wrapper:
+The vault is a local markdown-first research store.
 
-1. runs the router agent
-2. reads `reasoning_effort`
-3. starts `codex exec` with `-c reasoning.effort=<value>`
+- Notes live in `research/notes/`.
+- Temporary pipeline artifacts live in `research/temp/`.
+- The SQLite index lives under `.hyperresearch/`.
+- Fetched PDFs and assets are stored under `research/raw/` or asset paths linked from notes.
+- `hyperresearch sync` rebuilds the index from markdown.
+- `hyperresearch repair` refreshes docs, Codex bundle files, indexes, links, and metadata.
 
-## Codex agent policy
+The vault is accessible in three ways:
 
-This table shows the installed default policy for each agent. The direct-task launcher can still route a specific run to a different effort before execution, but the bundle itself keeps these per-agent defaults.
+- Codex skills and subagents during `/hyperresearch`.
+- The CLI: `fetch`, `search`, `note show`, `note list`, `tags`, `lint`, `repair`, and `sync`.
+- The read-only MCP server: `hyperresearch mcp`.
 
-| Agent | Role | Model | Default effort | Notes |
-|---|---|---|---|---|
-| `hyperresearch-effort-router` | Preflight classifier | `gpt-5.4-mini` | `low` | Read-only router that chooses the cheapest safe effort for a task |
-| `hyperresearch-fetcher` | URL fetching | `gpt-5.4-mini` | `medium` | High-throughput source retrieval and capture |
-| `hyperresearch-readability-recommender` | Readability suggestions | `gpt-5.4-mini` | `medium` | Recommends paragraph/list/table improvements |
-| `hyperresearch-loci-analyst` | Loci selection | `gpt-5.4` | `medium` | Picks focused loci and source budgets |
-| `hyperresearch-depth-investigator` | Locus investigation | `gpt-5.4` | `medium` | Writes interim notes with committed positions |
-| `hyperresearch-source-analyst` | Long-source digest | `gpt-5.4` | `medium` | Reads one long source end to end and summarizes it |
-| `hyperresearch-draft-orchestrator` | Draft orchestration | `gpt-5.4` | `medium` | Prepares one draft angle per subagent |
-| `hyperresearch-patcher` | Surgical editing | `gpt-5.4` | `medium` | Applies critic findings as small Edit hunks |
-| `hyperresearch-polish-auditor` | Hygiene pass | `gpt-5.4` | `medium` | Removes filler and style leaks |
-| `hyperresearch-corpus-critic` | Corpus pressure test | `gpt-5.5` | `high` | Asks what source would overturn the current direction |
-| `hyperresearch-dialectic-critic` | Counter-evidence | `gpt-5.5` | `high` | Looks for missing opposition and hedges |
-| `hyperresearch-depth-critic` | Depth coverage | `gpt-5.5` | `high` | Finds shallow spots in interim notes |
-| `hyperresearch-width-critic` | Breadth coverage | `gpt-5.5` | `high` | Finds supported topics the draft ignores |
-| `hyperresearch-instruction-critic` | Prompt fidelity | `gpt-5.5` | `high` | Checks the report against the atomic asks |
-| `hyperresearch-synthesizer` | Final synthesis | `gpt-5.5` | `high` | Builds the final report from the draft set |
+There is no separate GUI in this repo. The CLI and MCP server are the supported vault interfaces.
 
-The model roster is fixed by role. The router only changes the effort budget for a specific run, not the agent model.
-
-## Vault layout
-
-The vault is the persistent part of the system.
-
-- Markdown notes live in `research/notes/`
-- The SQLite index lives under `.hyperresearch/`
-- Fetched sources can be searched later
-- `hyperresearch sync` rebuilds the index from markdown
-- `hyperresearch repair` refreshes the vault and platform bundle
-
-The goal is that the repository stays useful even if the index is deleted or the session changes.
-
-## Practical commands
+## Practical Commands
 
 - `hyperresearch setup` starts interactive setup.
 - `hyperresearch fetch "<url>"` fetches a source into the vault.
 - `hyperresearch search "<query>"` searches the vault.
 - `hyperresearch note show <id>` reads a note.
+- `hyperresearch note list` lists notes.
+- `hyperresearch tags` lists the tag vocabulary.
 - `hyperresearch lint` checks vault structure and links.
-- `hyperresearch repair` repairs vault state and bundle files.
+- `hyperresearch repair` repairs vault state and Codex bundle files.
 - `hyperresearch sync` rescans markdown and rebuilds the index.
 - `hyperresearch mcp` starts the read-only MCP server.
+- `hyperresearch codex run "<task>"` runs the direct-task effort router before invoking Codex.
 
-## How to think about the Codex bundle
+## Codex Agent Policy
 
-There are two layers in the Codex setup:
+The installed Codex bundle uses static role definitions in `.codex/agents/*.toml` plus dynamic effort routing for direct tasks.
 
-1. static role definitions in `.codex/agents/*.toml`
-2. dynamic effort routing for direct tasks
-
-That keeps the system predictable while still letting cheap tasks stay cheap.
-
-## Claude Code compatibility
-
-The legacy Claude path is still available for existing users and regression checks:
-
-- `hyperresearch install --platform claude`
-- `hyperresearch install --global --platform claude`
-- `hyperresearch install --steps-only . --platform claude`
-
-The Claude path writes `.claude/` assets and the PreToolUse hook. The Codex path writes `.agents/`, `.codex/`, and `AGENTS.md`; it does not install Claude hooks.
+| Agent | Role | Model | Default effort |
+|---|---|---|---|
+| `hyperresearch-effort-router` | Direct-task effort classifier | `gpt-5.4-mini` | `low` |
+| `hyperresearch-fetcher` | URL fetching | `gpt-5.4-mini` | `medium` |
+| `hyperresearch-readability-recommender` | Readability suggestions | `gpt-5.4-mini` | `medium` |
+| `hyperresearch-loci-analyst` | Loci selection | `gpt-5.4` | `medium` |
+| `hyperresearch-depth-investigator` | Locus investigation | `gpt-5.4` | `medium` |
+| `hyperresearch-source-analyst` | Long-source digest | `gpt-5.4` | `medium` |
+| `hyperresearch-draft-orchestrator` | Draft orchestration | `gpt-5.4` | `medium` |
+| `hyperresearch-patcher` | Surgical editing | `gpt-5.4` | `medium` |
+| `hyperresearch-polish-auditor` | Hygiene pass | `gpt-5.4` | `medium` |
+| `hyperresearch-corpus-critic` | Corpus pressure test | `gpt-5.5` | `high` |
+| `hyperresearch-dialectic-critic` | Counter-evidence | `gpt-5.5` | `high` |
+| `hyperresearch-depth-critic` | Depth coverage | `gpt-5.5` | `high` |
+| `hyperresearch-width-critic` | Breadth coverage | `gpt-5.5` | `high` |
+| `hyperresearch-instruction-critic` | Prompt fidelity | `gpt-5.5` | `high` |
+| `hyperresearch-synthesizer` | Final synthesis | `gpt-5.5` | `high` |
 
 ## Requirements
 
 - Python 3.11 to 3.13
-- Codex CLI for the Codex path
-- Claude Code for the legacy path
+- Codex CLI for `hyperresearch codex run`
 
 ## Attribution
 
-This repository is an adaptation of the original hyperresearch project by Jordan Gibbs:
+This repository is based on the original hyperresearch project by Jordan Gibbs:
 
 https://github.com/jordan-gibbs/hyperresearch
 
-The original workflow and vault idea were the starting point. This fork reworked the runtime for Codex-first usage and added the Codex-native bundle plus effort routing.
+The original workflow and vault idea were the starting point. This repo reworks the runtime and documentation for Codex-first usage.
 
 ## License
 

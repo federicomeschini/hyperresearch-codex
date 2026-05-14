@@ -265,7 +265,7 @@ prompt: |
 - Minimum source count met (per tier table)
 - Coverage check shows no `uncovered` atomic items (thin is acceptable)
 - `research/temp/coverage-gaps.md` written
-- (For std/full): `research/temp/redundancy-audit.md` written if any claim files existed
+- (For full tier): `research/temp/redundancy-audit.md` written if any claim files existed
 
 If you fall short after two waves, proceed anyway but ensure `coverage-gaps.md` lists what's missing so the drafter handles it.
 
