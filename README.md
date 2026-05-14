@@ -92,16 +92,29 @@ That wrapper:
 2. reads `reasoning_effort`
 3. starts `codex exec` with `-c reasoning.effort=<value>`
 
-## Codex agent budget map
+## Codex agent policy
 
-| Agent group | Model | Reasoning effort | Notes |
-|---|---|---|---|
-| Effort router | `gpt-5.4-mini` | `low` | Read-only preflight that picks the cheapest safe effort |
-| Fetcher / readability | `gpt-5.4-mini` | `medium` | High-throughput extraction and formatting work |
-| Loci / depth / source / patch / polish / draft orchestration | `gpt-5.4` | `medium` | Operational analysis and editing roles |
-| Critics / synthesizer | `gpt-5.5` | `high` | Adversarial review and final arbitration |
+This table shows the installed default policy for each agent. The direct-task launcher can still route a specific run to a different effort before execution, but the bundle itself keeps these per-agent defaults.
 
-The model roster is fixed by role. The router only changes the effort budget, not the model choice.
+| Agent | Role | Model | Default effort | Notes |
+|---|---|---|---|---|
+| `hyperresearch-effort-router` | Preflight classifier | `gpt-5.4-mini` | `low` | Read-only router that chooses the cheapest safe effort for a task |
+| `hyperresearch-fetcher` | URL fetching | `gpt-5.4-mini` | `medium` | High-throughput source retrieval and capture |
+| `hyperresearch-readability-recommender` | Readability suggestions | `gpt-5.4-mini` | `medium` | Recommends paragraph/list/table improvements |
+| `hyperresearch-loci-analyst` | Loci selection | `gpt-5.4` | `medium` | Picks focused loci and source budgets |
+| `hyperresearch-depth-investigator` | Locus investigation | `gpt-5.4` | `medium` | Writes interim notes with committed positions |
+| `hyperresearch-source-analyst` | Long-source digest | `gpt-5.4` | `medium` | Reads one long source end to end and summarizes it |
+| `hyperresearch-draft-orchestrator` | Draft orchestration | `gpt-5.4` | `medium` | Prepares one draft angle per subagent |
+| `hyperresearch-patcher` | Surgical editing | `gpt-5.4` | `medium` | Applies critic findings as small Edit hunks |
+| `hyperresearch-polish-auditor` | Hygiene pass | `gpt-5.4` | `medium` | Removes filler and style leaks |
+| `hyperresearch-corpus-critic` | Corpus pressure test | `gpt-5.5` | `high` | Asks what source would overturn the current direction |
+| `hyperresearch-dialectic-critic` | Counter-evidence | `gpt-5.5` | `high` | Looks for missing opposition and hedges |
+| `hyperresearch-depth-critic` | Depth coverage | `gpt-5.5` | `high` | Finds shallow spots in interim notes |
+| `hyperresearch-width-critic` | Breadth coverage | `gpt-5.5` | `high` | Finds supported topics the draft ignores |
+| `hyperresearch-instruction-critic` | Prompt fidelity | `gpt-5.5` | `high` | Checks the report against the atomic asks |
+| `hyperresearch-synthesizer` | Final synthesis | `gpt-5.5` | `high` | Builds the final report from the draft set |
+
+The model roster is fixed by role. The router only changes the effort budget for a specific run, not the agent model.
 
 ## Vault layout
 
