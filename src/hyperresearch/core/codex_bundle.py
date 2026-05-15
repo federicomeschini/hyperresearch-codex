@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import yaml
 
@@ -202,10 +202,7 @@ def _split_prompt(prompt: str) -> tuple[dict[str, object], str]:
 
 def _nickname_candidates(name: str) -> list[str]:
     """Derive a few human-friendly nicknames for a Codex agent role."""
-    if name.startswith("hyperresearch-"):
-        slug = name.removeprefix("hyperresearch-")
-    else:
-        slug = name
+    slug = name.removeprefix("hyperresearch-") if name.startswith("hyperresearch-") else name
 
     candidates: list[str] = []
     spaced = slug.replace("-", " ").strip()
@@ -471,10 +468,7 @@ def _update_codex_config(root: Path) -> str | None:
     """Update `.codex/config.toml` with the hyperresearch defaults."""
     config_path = root / ".codex" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    if config_path.exists():
-        text = config_path.read_text(encoding="utf-8")
-    else:
-        text = ""
+    text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
 
     changed = False
 

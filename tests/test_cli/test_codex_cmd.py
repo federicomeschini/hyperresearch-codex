@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from hyperresearch.core.codex_bundle import build_codex_effort_router_prompt
 from hyperresearch.core import codex_runner
+from hyperresearch.core.codex_bundle import build_codex_effort_router_prompt
 
 
 def test_build_codex_effort_router_prompt_includes_task():

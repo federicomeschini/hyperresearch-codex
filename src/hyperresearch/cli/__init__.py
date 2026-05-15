@@ -57,9 +57,9 @@ def main(
 
 
 # Root-level commands
+from hyperresearch.cli.codex_cmd import app as codex_app
 from hyperresearch.cli.dedup import dedup as _dedup
 from hyperresearch.cli.fetch import fetch as _fetch
-from hyperresearch.cli.codex_cmd import app as codex_app
 from hyperresearch.cli.import_cmd import import_vault as _import
 from hyperresearch.cli.install import install as _install
 from hyperresearch.cli.main import init as _init
