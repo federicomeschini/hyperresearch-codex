@@ -22,11 +22,11 @@ before a heavier role is spawned.
 
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-import json
 from pathlib import Path
-import re
 
 import yaml
 
