@@ -32,6 +32,9 @@ import yaml
 
 from hyperresearch.core.agent_docs import transform_agent_markdown_for_codex
 from hyperresearch.core.hooks import (
+    _HYPERRESEARCH_STEP_SKILLS,
+    _RETIRED_AGENT_FILES,
+    _RETIRED_SKILL_DIRS,
     CORPUS_CRITIC_AGENT,
     DEPTH_CRITIC_AGENT,
     DEPTH_INVESTIGATOR_AGENT,
@@ -46,12 +49,10 @@ from hyperresearch.core.hooks import (
     SOURCE_ANALYST_AGENT,
     SYNTHESIZER_AGENT,
     WIDTH_CRITIC_AGENT,
-    _HYPERRESEARCH_STEP_SKILLS,
-    _RETIRED_AGENT_FILES,
-    _RETIRED_SKILL_DIRS,
     _read_skill_source,
     _render_scaffold_only_bullets,
 )
+
 
 @dataclass(frozen=True)
 class _CodexModelPolicy:
